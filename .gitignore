@@ -1,0 +1,16 @@
+# js/ts
+node_modules/
+dist/
+.cache/
+*.tsbuildinfo
+
+# rust
+target/
+
+# env
+.env
+.env.local
+
+# os
+.DS_Store
+Thumbs.db
