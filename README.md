@@ -4,11 +4,13 @@
 [![Tokio](https://img.shields.io/badge/async-Tokio-black?logo=tokio&logoColor=white)](https://tokio.rs/)
 [![Axum](https://img.shields.io/badge/http-Axum-4B275F?logo=rust&logoColor=white)](https://github.com/tokio-rs/axum)
 [![React](https://img.shields.io/badge/ui-React-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/lang-TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Bun](https://img.shields.io/badge/pkg-Bun-fbf0df?logo=bun&logoColor=black)](https://bun.sh/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
 
 **typeboard** aims to send and receive API signals in Rust, then visualize them on a dashboard.
 
-The repo currently ships a minimal scaffold (Axum API + React UI). Over time it will grow into a practical playground for real-world Rust backend patterns—async I/O, HTTP stacks, CPU-bound parallelism, observability, and more.
+The repo currently ships a minimal scaffold (Axum API + React/TypeScript UI). Over time it will grow into a practical playground for real-world Rust backend patterns—async I/O, HTTP stacks, CPU-bound parallelism, observability, and more.
 
 ---
 
@@ -38,13 +40,27 @@ cargo run
 
 ### Frontend (`frontend/`, port 5173)
 
+Vite + React + **TypeScript**. Install and run with **npm** or **Bun** (both work).
+
 ```bash
 cd frontend
+
+# npm
 npm install
 npm run dev
+
+# or Bun
+bun install
+bun run dev
 ```
 
-Open http://localhost:5173 and use the button to fetch a message from the backend.
+Production build:
+
+```bash
+npm run build   # or: bun run build
+```
+
+Open http://localhost:5173 and use the button to fetch a message from the backend (`http://127.0.0.1:3001/api/hello`).
 
 ---
 
@@ -75,17 +91,38 @@ Priorities may shift, but the direction is to layer in mature crates from the Ru
 
 | Area | Candidates | Role |
 |---|---|---|
-| Database | sqlx (+ PostgreSQL) | Durable storage |
+| Database | sqlx (+ PostgreSQL), rusqlite / SQLite | Durable storage |
 | Cache / locks | Redis | Sessions, rate limits, short-lived queues |
-| Realtime | WebSocket / SSE | Live dashboard updates |
+| Realtime | WebSocket / SSE (Axum · Bun notes) | Live dashboard updates |
 | Observability | tracing, metrics | Logs, traces, metrics |
 | Config | config / dotenv | Environment-specific settings |
 | Auth | JWT (and related) | Protect APIs and the dashboard |
 | Deploy | Docker Compose | Local and staging bring-up |
 
+---
+
+## Docs
+
 Study notes live under [`docs/`](./docs/):
 
-- [Rust grammar](./docs/grammer/readme.md)
-- [Tokio](./docs/tokio/readme.md)
-- [reqwest / Axum request–response](./docs/reqwest/01.md)
-- [MSA with Axum](./docs/msa/readme.md)
+| Topic | Path |
+|---|---|
+| Rust | [`docs/rust`](./docs/rust/) |
+| Tokio | [`docs/tokio/readme.md`](./docs/tokio/readme.md) |
+| Axum | [`docs/axum`](./docs/axum/) |
+| Hyper | [`docs/hyper`](./docs/hyper/) |
+| reqwest | [`docs/reqwest`](./docs/reqwest/) |
+| Serde | [`docs/serde`](./docs/serde/) |
+| rusqlite | [`docs/rusqlite`](./docs/rusqlite/) |
+| Bun (Go std vs Bun · HTTP/WS TS) | [`docs/bun`](./docs/bun/) |
+| MSA with Axum | [`docs/msa/readme.md`](./docs/msa/readme.md) |
+| CS notes | [`docs/cs`](./docs/cs/) |
+| LLM notes | [`docs/llm`](./docs/llm/) |
+
+Minimal Bun WebSocket lab (no npm packages):
+
+```bash
+cd docs/bun
+bun run server.ts   # terminal 1
+bun run client.ts   # terminal 2
+```
