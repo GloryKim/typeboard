@@ -451,7 +451,6 @@ console.log("🚀 Bun 웹소켓 서버가 3000번 포트에서 실행 중입니�
 브라우저 `WebSocket`과 같은 API를 Bun이 제공한다. 이벤트는 `onopen` / `addEventListener` 둘 다 가능.
 
 ```ts
-// client.ts  — docs/bun/client.ts 와 동일
 const ws = new WebSocket("ws://localhost:3000");
 
 // 서버와 연결이 완료되었을 때
@@ -1138,7 +1137,6 @@ docs/bun/
 ```
 
 ```bash
-cd docs/bun
 bun run server.ts   # 터미널 1
 bun run client.ts   # 터미널 2
 ```

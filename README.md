@@ -40,16 +40,11 @@ cargo run
 
 ### Frontend (`frontend/`, port 5173)
 
-Vite + React + **TypeScript**. Install and run with **npm** or **Bun** (both work).
+Vite + React + **TypeScript**. Install and run with **Bun** (both work).
 
 ```bash
 cd frontend
 
-# npm
-npm install
-npm run dev
-
-# or Bun
 bun install
 bun run dev
 ```
@@ -57,7 +52,7 @@ bun run dev
 Production build:
 
 ```bash
-npm run build   # or: bun run build
+bun run build
 ```
 
 Open http://localhost:5173 and use the button to fetch a message from the backend (`http://127.0.0.1:3001/api/hello`).
@@ -118,11 +113,3 @@ Study notes live under [`docs/`](./docs/):
 | MSA with Axum | [`docs/msa/readme.md`](./docs/msa/readme.md) |
 | CS notes | [`docs/cs`](./docs/cs/) |
 | LLM notes | [`docs/llm`](./docs/llm/) |
-
-Minimal Bun WebSocket lab (no npm packages):
-
-```bash
-cd docs/bun
-bun run server.ts   # terminal 1
-bun run client.ts   # terminal 2
-```
