@@ -3,14 +3,19 @@
 > 전제: **`bun add` / npm 패키지 없음.** Bun 바이너리에 포함된 API만 사용한다.  
 > 언어: **TypeScript** (`bun run server.ts` — 별도 `tsc`/`ts-node` 불필요).  
 > 핵심 API: `Bun.serve`, `server.upgrade`, `ServerWebSocket`, `fetch`, `Response`, `Bun.file`.  
+> 함께 두는 실행 예제: [`server.ts`](./server.ts), [`client.ts`](./client.ts) (7절).  
 > 선수: HTTP 기초, WebSocket 개념(핸드셰이크·프레임), TS 타입 기초.  
 > 관련: [Go std vs Bun 내장 범위](./260802_1629_go-std-vs-bun-native-scope.md)
 
 실행:
 
 ```bash
+# 최소 WS 페어 (이 폴더)
 bun run server.ts
-# 또는
+bun run client.ts
+
+# 또는 교재 안의 다른 예제 파일을 만들어
+bun run chat-server.ts
 bun --hot server.ts   # 파일 변경 시 핫 리로드
 ```
 
@@ -24,13 +29,14 @@ bun --hot server.ts   # 파일 변경 시 핫 리로드
 4. [JSON REST API](#4-json-rest-api)
 5. [정적 파일 · HTML 한 방에](#5-정적-파일--html-한-방에)
 6. [WebSocket 업그레이드 핵심](#6-websocket-업그레이드-핵심)
-7. [에코 · 채팅방 (subscribe / publish)](#7-에코--채팅방-subscribe--publish)
-8. [실전 통합: HTTP + WS + 브라우저 클라이언트](#8-실전-통합-http--ws--브라우저-클라이언트)
-9. [Bun 쪽 WebSocket 클라이언트](#9-bun-쪽-websocket-클라이언트)
-10. [옵션 · 백프레셔 · 타임아웃](#10-옵션--백프레셔--타임아웃)
-11. [함정 · 자주 하는 실수](#11-함정--자주-하는-실수)
-12. [체크리스트](#12-체크리스트)
-13. [부록: 추가로 알아둘 개념](#13-부록-추가로-알아둘-개념)
+7. [저장소 최소 페어 — server.ts · client.ts](#7-저장소-최소-페어--serverts--clientts)
+8. [에코 · 채팅방 (subscribe / publish)](#8-에코--채팅방-subscribe--publish)
+9. [실전 통합: HTTP + WS + 브라우저 클라이언트](#9-실전-통합-http--ws--브라우저-클라이언트)
+10. [Bun 쪽 WebSocket 클라이언트 (심화)](#10-bun-쪽-websocket-클라이언트-심화)
+11. [옵션 · 백프레셔 · 타임아웃](#11-옵션--백프레셔--타임아웃)
+12. [함정 · 자주 하는 실수](#12-함정--자주-하는-실수)
+13. [체크리스트](#13-체크리스트)
+14. [부록: 추가로 알아둘 개념](#14-부록-추가로-알아둘-개념)
 
 ---
 
@@ -386,7 +392,129 @@ server.upgrade(req, {
 
 ---
 
-## 7. 에코 · 채팅방 (subscribe / publish)
+## 7. 저장소 최소 페어 — server.ts · client.ts
+
+이 디렉터리에 있는 실행 예제와 **동일한** 코드다.
+
+| 파일 | 역할 |
+|---|---|
+| [`server.ts`](./server.ts) | 모든 요청을 WS로 upgrade + 에코 |
+| [`client.ts`](./client.ts) | 2초마다 메시지 전송 · 수신 로그 |
+
+```bash
+# 터미널 1
+bun run server.ts
+
+# 터미널 2
+bun run client.ts
+```
+
+### server.ts
+
+학습용으로 **경로 분기 없이** 들어오는 요청을 전부 WebSocket으로 올린다.  
+(실서비스에서는 6절처럼 `/ws`만 upgrade 하는 편이 안전하다.)
+
+```ts
+Bun.serve({
+  port: 3000,
+  fetch(req, server) {
+    // HTTP 요청을 웹소켓 연결로 전환(업그레이드)
+    if (server.upgrade(req)) {
+      return;
+    }
+    return new Response("HTTP 요청은 지원하지 않습니다.", { status: 400 });
+  },
+  websocket: {
+    // 클라이언트가 연결되었을 때
+    open(ws) {
+      console.log("[서버] 새로운 클라이언트가 연결되었습니다.");
+      ws.send("서버: 연결을 환영합니다!");
+    },
+    // 메시지를 받았을 때
+    message(ws, message) {
+      console.log(`[서버] 받은 메시지: ${message}`);
+      // 받은 메시지 그대로 클라이언트에게 반환 (에코)
+      ws.send(`서버 에코: ${message}`);
+    },
+    // 연결이 끊어졌을 때
+    close(ws, code, reason) {
+      console.log("[서버] 클라이언트 연결이 종료되었습니다.");
+    },
+  },
+});
+
+console.log("🚀 Bun 웹소켓 서버가 3000번 포트에서 실행 중입니다...");
+```
+
+### client.ts
+
+브라우저 `WebSocket`과 같은 API를 Bun이 제공한다. 이벤트는 `onopen` / `addEventListener` 둘 다 가능.
+
+```ts
+// client.ts  — docs/bun/client.ts 와 동일
+const ws = new WebSocket("ws://localhost:3000");
+
+// 서버와 연결이 완료되었을 때
+ws.onopen = () => {
+  console.log("[클라이언트] 서버에 연결 성공!");
+
+  // 2초마다 서버로 메시지 전송
+  let count = 1;
+  setInterval(() => {
+    const msg = `안녕하세요! (${count++}번째 메시지)`;
+    console.log(`[클라이언트] 보냄: ${msg}`);
+    ws.send(msg);
+  }, 2000);
+};
+
+// 서버로부터 메시지를 받았을 때
+ws.onmessage = (event) => {
+  console.log(`[클라이언트] 받음: ${event.data}`);
+};
+
+// 서버와 연결이 끊어졌을 때
+ws.onclose = () => {
+  console.log("[클라이언트] 서버와 연결이 끊어졌습니다.");
+};
+
+// 에러 발생 시
+ws.onerror = (error) => {
+  console.error("[클라이언트] 에러 발생:", error);
+};
+```
+
+### 동작 흐름
+
+```text
+client.ts                     server.ts
+   │  WS handshake ──────────► upgrade → open
+   │  ◄──── "서버: 연결을 환영합니다!"
+   │  2초마다 send ──────────► message → echo send
+   │  ◄──── "서버 에코: …"
+```
+
+예상 로그 (요지):
+
+```text
+# server
+[서버] 새로운 클라이언트가 연결되었습니다.
+[서버] 받은 메시지: 안녕하세요! (1번째 메시지)
+
+# client
+[클라이언트] 서버에 연결 성공!
+[클라이언트] 받음: 서버: 연결을 환영합니다!
+[클라이언트] 보냄: 안녕하세요! (1번째 메시지)
+[클라이언트] 받음: 서버 에코: 안녕하세요! (1번째 메시지)
+```
+
+### 체크포인트
+
+- [ ] `bun run server.ts` 후 `bun run client.ts`로 에코 확인
+- [ ] 브라우저에서 `ws://localhost:3000` 은 이 서버가 **모든 path를 WS로** 받기 때문에, 일반 HTTP 페이지는 400 문구만 본다
+
+---
+
+## 8. 에코 · 채팅방 (subscribe / publish)
 
 Bun은 **토픽 pub/sub**이 내장이다. API 모양은 MQTT/Redis pub-sub과 비슷하지만,  
 **기본 구현은 이 Bun 프로세스 메모리 안**이다 (멀티 인스턴스·다른 머신과는 공유되지 않음).
@@ -476,7 +604,7 @@ const server = Bun.serve({
 
 ---
 
-## 8. 실전 통합: HTTP + WS + 브라우저 클라이언트
+## 9. 실전 통합: HTTP + WS + 브라우저 클라이언트
 
 **파일 하나**로 HTTP API · 인라인 HTML · 채팅 WS를 모두 제공한다.  
 외부 JS 라이브러리·번들러·`bun add` 없음.
@@ -762,12 +890,13 @@ bun run chat-server.ts
 
 ---
 
-## 9. Bun 쪽 WebSocket 클라이언트
+## 10. Bun 쪽 WebSocket 클라이언트 (심화)
 
-브라우저 없이 부하·통합 테스트할 때. **역시 패키지 없음** (`WebSocket` 글로벌).
+7절 [`client.ts`](./client.ts)가 **최소 에코 클라**다 (`onopen` / `setInterval`).  
+9절 채팅 서버(`chat-server.ts` 패턴)에 붙일 때는 쿼리로 nick/room을 넘긴다.
 
 ```ts
-// client.ts
+// chat-client.ts — 9절 통합 서버용
 const ws = new WebSocket("ws://127.0.0.1:3000/chat?nick=bot&room=lobby");
 
 ws.addEventListener("open", () => {
@@ -784,19 +913,22 @@ ws.addEventListener("close", () => {
 ```
 
 ```bash
-# 터미널1
-bun run chat-server.ts
-# 터미널2
-bun run client.ts
+# 7절 최소 페어
+bun run server.ts   
+bun run client.ts 
+
+# 9절 채팅 서버를 띄운 뒤
+bun run chat-client.ts
 ```
 
 ### 체크포인트
 
-- [ ] 서버/다른 브라우저에 bot 메시지 표시
+- [ ] 7절 페어로 에코 확인
+- [ ] 9절 서버 + 위 클라로 채팅 메시지 확인
 
 ---
 
-## 10. 옵션 · 백프레셔 · 타임아웃
+## 11. 옵션 · 백프레셔 · 타임아웃
 
 ### HTTP `idleTimeout` (serve 최상위)
 
@@ -891,10 +1023,11 @@ Bun.serve({
 
 ---
 
-## 11. 함정 · 자주 하는 실수
+## 12. 함정 · 자주 하는 실수
 
 1. **upgrade 성공 후 `return new Response(...)`** → 핸드셰이크 깨짐. `return`만.  
 2. **모든 경로를 upgrade** → 페이지·API 불가. pathname 분기.  
+   (7절 `server.ts`는 학습용으로 전부 upgrade — 실서비스에선 피한다.)  
 3. **`ws` npm 패키지 습관** → Bun에선 불필요.  
 4. **`ws.data` 타입 누락** → `websocket: { data: {} as T }` (공식).  
 5. **큰 페이로드 무검증** → 기본 16MB라도 앱에서 길이 가드.  
@@ -914,8 +1047,9 @@ Bun.serve({
 
 ---
 
-## 12. 체크리스트
+## 13. 체크리스트
 
+- [ ] **7절** `server.ts` + `client.ts` 에코 왕복  
 - [ ] `bun run`으로 TS HTTP 서버  
 - [ ] `routes` 또는 `fetch` 라우팅 + WS는 `fetch`에서 upgrade  
 - [ ] JSON POST/GET  
@@ -930,7 +1064,7 @@ Bun.serve({
 
 ---
 
-## 13. 부록: 추가로 알아둘 개념
+## 14. 부록: 추가로 알아둘 개념
 
 ### 바이너리 메시지
 
@@ -993,20 +1127,30 @@ Bun 1.x는 `import page from "./index.html"` + `routes`로 풀스택 서빙이 �
 
 ## 부록. 파일 구성 제안
 
+이 문서와 같은 폴더:
+
 ```text
-chat/
-  chat-server.ts   # 8절 통합 (이것만으로 충분)
-  client.ts        # 9절 (선택)
+docs/bun/
+  260802_1639_bun_http_websocket_ts.md   # 이 교재
+  # (선택) server.ts                              # 7절 최소 WS 서버 (에코)
+  # (선택) client.ts                              # 7절 최소 WS 클라
+  # (선택) chat-server.ts                # 9절 통합 예제를 파일로 빼서 실행
+```
+
+```bash
+cd docs/bun
+bun run server.ts   # 터미널 1
+bun run client.ts   # 터미널 2
 ```
 
 `package.json`은 없어도 된다. 있다면 **dependencies는 비운다**:
 
 ```json
 {
-  "name": "bun-chat-lab",
+  "name": "bun-ws-lab",
   "private": true,
   "scripts": {
-    "start": "bun run chat-server.ts",
+    "server": "bun run server.ts",
     "client": "bun run client.ts"
   }
 }
