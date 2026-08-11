@@ -1,7 +1,9 @@
 # Kimi K3 완전 정복 — LLM 구조 발전과정으로 읽는 오픈 프론티어 모델
 
 > **문서 성격**: Moonshot AI의 **Kimi K3**(2026.07.17 공개)를 아키텍처·학습·포스트트레이닝·인프라·벤치마크까지 상세 정리한 기술 심층 보고서.
+
 > **1차 근거**: Kimi K3 Tech Report(arXiv **2607.24653**), Kimi Linear 논문(arXiv **2510.26692**), Moonshot 공식 저장소/블로그, 그리고 노토랩 세미나 슬라이드([노토랩X수도리무브] Kimi K3 이해하기).
+
 > **팩트체크 표기**: 본문 수치·구조는 Tech Report 및 공식 저장소 원문에서 교차 확인했습니다. 세미나 슬라이드에만 등장하고 원문에서 확인되지 않은 항목은 별도로 표시합니다.
 
 ---
@@ -13,22 +15,23 @@ Kimi K3는 **"두 개의 스케일링 축(사전학습 규모 + 테스트타임 
 | 항목 | 값 |
 |---|---|
 | 공개일 | 2026.07.17 |
-| 총 파라미터 | **2.8T** (2.78T) |
-| 활성 파라미터 | **104B** (104.2B) |
+| 총 파라미터 | **2.8T** (2.78T) glory : 사이즈가 어마어마 하네|
+| 활성 파라미터 | **104B** (104.2B) glory : 사이즈가 어마어마 하네|
 | 구조 | Mixture-of-Experts (MoE) |
 | 레이어 수 | **93** |
 | 컨텍스트 길이 | **1,048,576 토큰 (1M)** |
 | 어텐션 | **Hybrid**: KDA 69개 + Gated MLA 24개 (블록당 3:1) |
-| MoE | **Stable LatentMoE** — 896 라우팅 전문가 중 **16개 활성** (+ 공유 전문가 2) |
+| MoE | **Stable LatentMoE** — 896 라우팅 전문가 중 **16개 활성** (+ 공유 전문가 2) glory : 93층 모델이라고 한다. 거의 2%도 안되는 sparsity를 가진거네 Qwen3-Next 같은 모델들이 80B-A3B였는데, 말이지... |
 | 활성함수 | **SiTU-GLU** (Sigmoid Tanh Unit GLU) |
 | 위치 인코딩 | **NoPE** (No Positional Encoding) |
-| 옵티마이저 | **Per-Head Muon** |
+| 옵티마이저 | **Per-Head Muon** glory : 오랜만에 나온 새로운 옵티마이저이다. K3에서는 이걸로 최적화 했다고 한다. |
 | 비전 인코더 | **MoonViT-V2** (0.4B, 27층, from-scratch) |
 | 양자화 | **MXFP4 가중치 / MXFP8 활성값** (QAT) |
 | 스케일링 효율 | Kimi K2 대비 약 **2.5×** 개선 |
 | 위상 | Claude Fable 5 · GPT-5.6 Sol에는 다소 뒤지나, **평가된 다른 오픈/프로프라이어터리 모델은 대체로 상회**. **세계 최초 오픈 3T급 모델**. |
 
-**한 줄 요지**: K3의 진짜 기여는 새 알고리즘 하나가 아니라, **긴 컨텍스트를 감당하는 어텐션(KDA), 깊이 방향 정보 흐름(AttnRes), 극단적 희소 MoE(Stable LatentMoE)**를 안정적으로 결합해 **정보 흐름을 토큰·깊이·너비 세 방향으로 동시에 스케일링**한 데 있다.
+**한 줄 요지**: K3의 진짜 기여는 새 알고리즘 하나가 아니라,
+- 긴 컨텍스트를 감당하는 어텐션(KDA), 깊이 방향 정보 흐름(AttnRes), 극단적 희소 MoE(Stable LatentMoE)를 안정적으로 결합해 **정보 흐름을 토큰·깊이·너비 세 방향으로 동시에 스케일링**한 데 있다.
 
 ---
 
@@ -74,7 +77,25 @@ K3 아키텍처는 **정보 흐름을 세 방향으로 스케일링**하도록 �
 3. **압축하면 정보가 충돌·희석된다** → **DeltaNet / Gated DeltaNet**으로 중간중간 상태를 "수정(기존 성분 제거 후 추가)".
 4. **그래도 압축으로 잃는 전역 정보를 어떻게 보완?** → **평소엔 Linear로 처리하다가 중간중간 전역 Attention을 섞는 하이브리드**. (Kimi K3, Qwen 3.5, Nemotron 3 등 최신 흐름)
 
+- glory : 여기서 중요한 구조 포인트가 Kimi Delta Attention, Gated MLA, Attention Residual, StableLatentMoE, NoPE(No Positional Encoding)인듯 하다. 어텐션 레이어의 변화, Gated MLA, 어텐션 처리하는 또 하나의 컴포넌트, MoE 구조의 변화, 위치 인코딩의 변화
+
 ### 2-2. KDA (Kimi Delta Attention) — 채널별 감쇠 게이트
+
+- glory : 기본 어텐션(QKV곱해서 소프트맥스 붙이는)은 다보는건 좋은데, 너무 비싸서 Long Context 계산이 어렵다. 계산에서 오는 오버헤드를 어떻게 줄이는게 핵심일까? 계산량/메모리를 줄이도록 중간상태를 압축하거나, 범위를 줄이자는게 아이디어(Linear Attn, Recurrent State(Mamba)/범위를 낮추자 쪽 sliding-window Attention 계열)이다. 원래는 모든걸 비교해야하는데 말이지. 
+- glory : 계산량/메모리를 줄이도록 중간상태를 압축 분야는 : KIMI, Qwen // 중간에 말이 끊겨버리거나 주제 바꾸면 데미지가 오지 않을까?
+- glory : 범위를 줄이자는건 : Gemma나 Mistral // 이건 생각보다 덜 대미지가 올수도 있겠다.
+- glory : 압축하면 정보가 충돌하거나 희석되는데? 그래서 DeltaNet/Gated DeltaNet으로 중간중간 수정하였고 이건 rnn, lstm 같이 중간 중간에 과거 내용을 잊어버리자이다.
+- glory : 압축으로 손실되는 정보를 어떻게 보완할까? 고민하다가, 평소에는 중간중간 Linear로 작업하다가, 중간중간에 전역 Attn을 섞어주자 이런 아이디어이고, 이런건 KimiK3, Qwen3.5, Nemotron3에서 아이디어가 나온다. 리니어로 압축하면 정보가 싹다 사라지니깐, 중간중간에 슥 보자는 의미
+
+- glory : attention 기본 구조, 새로운 토큰이 입력될때마다 모든 값을 계산 + Softmax(제곱에 비례) [참고 영상 (10분 48초부터)](https://youtu.be/njM0LT4s6_0?si=xJo4yLnwBczniPHg&t=648)
+
+- glory : 위에것은 되게 오래걸리니깐 linear attention/Recurrent State 제곱에 비례하는 계산량을 줄이기 위해, 중간 상태를 Memory 형태로 압축 하는 것이다. [참고 영상](https://youtu.be/njM0LT4s6_0?si=VUQLiARtWQZV-Tip&t=669)
+
+- glory : 이렇게 하면 누적만 되니깐 완화만 하는 게이트도 추가합니다.[참고영상 (11:37)](https://youtu.be/njM0LT4s6_0?si=E_U8CkHXRKiMTVp6&t=697) DeltaNet, Recurrent State는 누적하지만 완화하지 못하므로 기존 성분을 제거하고 추가 (2020년도에)
+
+- glory : Gated DeltaNet이라고 문맥 경계 등을 잘 처리할 수 있도록, 전역적으로 감쇠시키는 단계를 추가 합니다. [참고자료 12:13](https://youtu.be/njM0LT4s6_0?si=-PxU7vkk1wjekK66) 이게 문맥 경계 즉 압축을 시키면 중간 중간에 경계를 바꾸면, 통째로 잊어버리는 통편집을 시켜버리는것이다. 이게 지난 (2025년) Qwen에 들어가는거다. 
+
+- glory : [참고영상 13:00](https://youtu.be/njM0LT4s6_0?si=9vGBy97sVk5mEyqc&t=780) KIMI Delta Attention 채널별 감쇠 리스트 즉 KDA는 이전상태의 각 Key 채널을 서로 다른 비율로 감쇠한뒤, 감쇠된 상태가 현재 Key에서 예측한 Value와 목표 Value의 오차를 Delta Rule로 수정하는것인데, 채널별로 독립적으로 감쇠하는거다 어디가 중요할지 모르니깐, 여기서 부터 보면 트랜스포머 구조가 아니지 않을까 싶기도 한다.RNN이랑 하이브리드 같은것 같다.
 
 KDA는 **delta-rule recurrence를 채널별(channel-wise) forget gate로 확장**한 선형 어텐션 모듈이다. (Gated DeltaNet이 head 단위의 거친 forget gate를 쓰는 반면, KDA는 **각 feature 차원마다 독립적인 감쇠율**을 둔다 — GLA 스타일의 미세한 게이팅.)
 
@@ -232,6 +253,8 @@ class SiTUGLU(nn.Module):
 | 2.5세대 | **YaRN** (Position Interpolation + Bandwise Scaling + Attention Temperature, [2309.00071](https://arxiv.org/abs/2309.00071)) | 32k~256k, 일부 1M | 재튜닝 필요 |
 | 3세대 | **NoPE** (No Positional Encoding) | — | — |
 
+- glory : 가장 중요한 contribution은 scaling 아닐까? 여기서 저 사람들은 더 큰걸 만들수도 있다는걸 어필하고 있다. expert 비율이 384개에서 896개로 더 많아졌다 이런걸 의미하는 거니깐 ㅇㅇ
+
 - **NoPE의 전제**: LLM 학습이 기본적으로 위치 정보를 (인과적 마스킹·게이팅 등을 통해) 이미 담고 있으므로, 명시적 PE가 없어도 된다는 접근. 실무적으로는 RoPE+NoPE 혼합 또는 NoPE-only로 접근([2501.18795](https://arxiv.org/abs/2501.18795)).
 - **K3의 실제 구현**: 위치 정보를 **KDA의 recurrent 게이팅·감쇠로 암시적으로 인코딩**. 덕분에 **PE 수정 없이 1M 토큰으로 직접 외삽(extrapolate)** 가능 — RoPE rescaling이나 YaRN 보간이 불필요.
 
@@ -380,6 +403,8 @@ KDA는 softmax 어텐션의 커지는 KV 캐시를 **고정 크기 recurrent sta
 **평가 조건**: Kimi K3는 reasoning effort=max, temperature=1.0. 비교군: Claude Fable 5, GPT-5.6 Sol, Claude Opus 4.8, GPT-5.5(xhigh), GLM-5.2(오픈).
 
 **총평**: K3는 **가장 강한 프로프라이어터리(Claude Fable 5 · GPT-5.6 Sol)에는 전체적으로 다소 뒤지지만**, 평가 스위트의 **다른 오픈/프로프라이어터리 모델은 대체로 상회**. 여러 에이전틱 벤치에서 SOTA.
+
+- glory : 주로 스킬벤치랑 MCP 벤치를 주로 보려고 한다.Terminal-Bench도 중요한게, 터미널써서 얼마나 툴을 잘쓰는지 cli를 잘쓰는지 이게 중요한게 아닐까? 예를들어 화질분류하고, 오디오 돌리고 하는건 ffmpeg써야할텐데, 이런점에 대해서 주로 잘 쓰이지 않을까? 싶은 마음? 그리고 프론트엔드 아레나 ㅇㅇ 이것도 원샷으로 발표자료 만들기도 하니 중요한 것 같다.
 
 | 영역 | 벤치마크 | Kimi K3 | Claude Fable 5 | GPT-5.6 Sol |
 |---|---|---:|---:|---:|
