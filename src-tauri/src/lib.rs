@@ -6,7 +6,7 @@ mod macos_dock;
 
 use pty::PtyState;
 use tauri::menu::MenuEvent;
-use tauri::RunEvent;
+use tauri::{RunEvent, WindowEvent};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,6 +19,7 @@ pub fn run() {
             pty::pty_resize,
             pty::pty_close,
             pty::pty_tab_title,
+            windows::host_user,
             windows::new_window,
         ])
         .setup(|app| {
@@ -31,14 +32,27 @@ pub fn run() {
         .on_menu_event(|app, event| handle_menu(app, &event))
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            if let RunEvent::Reopen {
+        .run(|app, event| match event {
+            RunEvent::Reopen {
                 has_visible_windows: false,
                 ..
-            } = event
-            {
+            } => {
                 let _ = windows::open_window(app);
             }
+            RunEvent::WindowEvent { label, event, .. } => {
+                #[cfg(target_os = "macos")]
+                if matches!(
+                    event,
+                    WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. }
+                ) {
+                    windows::sync_native_title(app, &label);
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    let _ = (label, event);
+                }
+            }
+            _ => {}
         });
 }
 

@@ -5,7 +5,6 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon, type ISearchOptions } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 
@@ -113,6 +112,23 @@ function tabLabel(session: Session): string {
   return "zsh";
 }
 
+function processTitleName(session: Session): string {
+  const fg = session.fgName?.trim() || null;
+  if (fg && !isShellName(fg)) {
+    return fg;
+  }
+  const osc = shortenOsc(session.oscTitle);
+  if (osc && !isShellName(osc)) {
+    return osc;
+  }
+  const shell = (fg && isShellName(fg) ? fg : "zsh").toLowerCase();
+  return `-${shell}`;
+}
+
+function sessionWindowTitle(session: Session, user: string): string {
+  return `${user} — ${processTitleName(session)} — ${session.term.cols}×${session.term.rows}`;
+}
+
 function truncateLabel(text: string): string {
   if (text.length <= MAX_TAB_LABEL) {
     return text;
@@ -188,14 +204,7 @@ function createTerminal(host: HTMLElement, fontSize: number): {
     }),
   );
   term.open(host);
-
-  try {
-    const webgl = new WebglAddon();
-    webgl.onContextLoss(() => webgl.dispose());
-    term.loadAddon(webgl);
-  } catch {
-    // Canvas renderer is the fallback.
-  }
+  term.options.theme = HOMEBREW;
 
   return { term, fit, search };
 }
@@ -457,7 +466,6 @@ async function main(): Promise<void> {
   const tabsEl = document.querySelector<HTMLElement>("#tabs");
   const terminalsEl = document.querySelector<HTMLElement>("#terminals");
   const addBtn = document.querySelector<HTMLButtonElement>("#new-tab");
-  const titlebar = document.querySelector<HTMLElement>("#titlebar");
   const tabbar = document.querySelector<HTMLElement>("#tabbar");
   const overflowBtn = document.querySelector<HTMLButtonElement>("#tab-overflow");
   const picker = document.querySelector<HTMLElement>("#tab-picker");
@@ -467,7 +475,6 @@ async function main(): Promise<void> {
     !tabsEl ||
     !terminalsEl ||
     !addBtn ||
-    !titlebar ||
     !tabbar ||
     !overflowBtn ||
     !picker ||
@@ -485,15 +492,30 @@ async function main(): Promise<void> {
   let ctxTabId: number | null = null;
   let fontSize = loadFontSize();
   let lastZoomAt = 0;
+  let hostUser = "user";
   applyChromeScale(fontSize);
+
+  try {
+    hostUser = await invoke<string>("host_user");
+  } catch {
+    // Fall back to a generic label.
+  }
 
   const getActive = (): Session | null =>
     activeId === null ? null : (sessions.get(activeId) ?? null);
 
   const find = setupFindBar(getActive);
 
-  const setWindowTitle = (title: string): void => {
-    void appWindow.setTitle(title);
+  const refreshChromeTitle = (): void => {
+    const session = getActive();
+    const text = session
+      ? sessionWindowTitle(session, hostUser)
+      : "typeboard";
+    void appWindow.setTitle(text);
+  };
+
+  const setWindowTitle = (_title: string): void => {
+    refreshChromeTitle();
   };
 
   const fitSession = (session: Session): void => {
@@ -504,6 +526,9 @@ async function main(): Promise<void> {
         cols: session.term.cols,
         rows: session.term.rows,
       });
+    }
+    if (session.id === activeId) {
+      refreshChromeTitle();
     }
   };
 
@@ -872,11 +897,6 @@ async function main(): Promise<void> {
     ev.stopPropagation();
   });
 
-  titlebar.addEventListener("contextmenu", (ev) => {
-    ev.preventDefault();
-    showCtx(ev.clientX, ev.clientY, null);
-  });
-
   tabbar.addEventListener("contextmenu", (ev) => {
     ev.preventDefault();
     const tab = (ev.target as HTMLElement).closest(".tab");
@@ -961,12 +981,12 @@ async function main(): Promise<void> {
   await listen("terminal://zoom-out", () => bumpFont(-1));
   await listen("terminal://zoom-reset", () => applyFontSize(FONT_DEFAULT));
 
-  titlebar.addEventListener("mousedown", (ev) => {
+  tabbar.addEventListener("mousedown", (ev) => {
     if (ev.button !== 0) {
       return;
     }
     const target = ev.target as HTMLElement;
-    if (target.closest("button, .tab, .tabs")) {
+    if (target.closest("button, .tab")) {
       return;
     }
     void appWindow.startDragging();
@@ -1020,6 +1040,23 @@ async function main(): Promise<void> {
   });
   observer.observe(terminalsEl);
   observer.observe(tabsEl);
+
+  const syncFullscreen = (): void => {
+    void appWindow.isFullscreen().then((fullscreen) => {
+      document.body.classList.toggle("is-fullscreen", fullscreen);
+      const session = getActive();
+      if (session) {
+        fitSession(session);
+      }
+      syncOverflow();
+    });
+  };
+
+  syncFullscreen();
+  void appWindow.onResized(() => {
+    syncFullscreen();
+    window.setTimeout(syncFullscreen, 80);
+  });
 
   window.addEventListener("beforeunload", () => {
     if (disposing) {

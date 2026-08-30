@@ -23,13 +23,38 @@ pub fn open_window(app: &AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         builder = builder
-            .hidden_title(true)
-            .title_bar_style(TitleBarStyle::Overlay)
-            .traffic_light_position(tauri::LogicalPosition::new(14.0, 12.0));
+            .hidden_title(false)
+            .title_bar_style(TitleBarStyle::Visible);
     }
 
-    builder.build().map_err(|e| e.to_string())?;
+    let win = builder.build().map_err(|e| e.to_string())?;
+    #[cfg(target_os = "macos")]
+    sync_native_title(app, win.label());
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+pub fn sync_native_title(app: &AppHandle, label: &str) {
+    let Some(win) = app.get_webview_window(label) else {
+        return;
+    };
+    let Ok(ptr) = win.ns_window() else {
+        return;
+    };
+    if ptr.is_null() {
+        return;
+    }
+    unsafe {
+        let ns_window = &*ptr.cast::<objc2_app_kit::NSWindow>();
+        ns_window.setTitleVisibility(objc2_app_kit::NSWindowTitleVisibility::Visible);
+    }
+}
+
+#[tauri::command]
+pub fn host_user() -> String {
+    std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_else(|_| "user".into())
 }
 
 pub fn emit_to_focused(app: &AppHandle, event: &str) {

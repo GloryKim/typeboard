@@ -1,8 +1,10 @@
 :root {
-  color-scheme: dark;
   --bg: #000000;
-  --titlebar: #050505;
-  --tabbar: #000000;
+  --tabbar: #2c2c2e;
+  --tab-fg: #f5f5f7;
+  --tab-muted: #d1d1d6;
+  --tab-hover: #3a3a3c;
+  --tab-active: #48484a;
   --fg: #00ff00;
   --muted: #1a8f1a;
   --surface: #0a0a0a;
@@ -10,9 +12,8 @@
   --border: #004d00;
   --danger: #ff3333;
   --ui-scale: 1;
-  --titlebar-height: calc(38px * var(--ui-scale));
-  --tabbar-height: calc(34px * var(--ui-scale));
-  --chrome-height: calc(var(--titlebar-height) + var(--tabbar-height));
+  --tabbar-height: calc(22px * var(--ui-scale));
+  --chrome-height: var(--tabbar-height);
 }
 
 * {
@@ -36,34 +37,14 @@ body {
   z-index: 5;
 }
 
-.titlebar {
-  height: var(--titlebar-height);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 78px;
-  background: var(--titlebar);
-  user-select: none;
-  -webkit-app-region: drag;
-}
-
-.app-title {
-  font-family: ui-monospace, Menlo, Monaco, "SF Mono", monospace;
-  font-size: calc(13px * var(--ui-scale));
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--fg);
-  pointer-events: none;
-}
-
 .tabbar {
   height: var(--tabbar-height);
   display: flex;
   align-items: center;
-  padding: 0 8px;
-  gap: 4px;
+  padding: 0 4px;
+  gap: 2px;
   background: var(--tabbar);
-  border-bottom: 1px solid var(--border);
+  user-select: none;
   -webkit-app-region: no-drag;
 }
 
@@ -79,32 +60,45 @@ body {
   height: 0;
 }
 
+.tab,
+.tab-add,
+.tab-overflow,
+.tab-close,
+.tab-picker-title,
+.tab-picker-close {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 .tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  max-width: 180px;
-  min-width: 72px;
-  height: calc(26px * var(--ui-scale));
-  padding: 0 6px 0 10px;
+  gap: 4px;
+  max-width: 160px;
+  min-width: 56px;
+  height: calc(18px * var(--ui-scale));
+  padding: 0 4px 0 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
-  color: var(--muted);
+  color: #d1d1d6;
+  -webkit-text-fill-color: #d1d1d6;
   font: inherit;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(11px * var(--ui-scale));
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
 
 .tab:hover {
-  background: var(--hover);
-  color: var(--fg);
+  background: var(--tab-hover);
+  color: #f5f5f7;
+  -webkit-text-fill-color: #f5f5f7;
 }
 
 .tab.active {
-  background: var(--hover);
-  color: var(--fg);
+  background: var(--tab-active);
+  color: #f5f5f7;
+  -webkit-text-fill-color: #f5f5f7;
 }
 
 .tab-title {
@@ -113,59 +107,64 @@ body {
   white-space: nowrap;
   flex: 1;
   text-align: left;
+  color: inherit;
+  -webkit-text-fill-color: inherit;
 }
 
 .tab-close {
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: 3px;
   background: transparent;
   color: inherit;
-  font-size: 12px;
-  line-height: 16px;
+  -webkit-text-fill-color: inherit;
+  font-size: 11px;
+  line-height: 14px;
   cursor: pointer;
   opacity: 0.55;
 }
 
 .tab-close:hover {
-  background: var(--border);
+  background: var(--tab-hover);
   opacity: 1;
 }
 
 .tab-add {
   flex: none;
-  width: 26px;
-  height: 26px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
-  color: var(--fg);
-  font-size: 18px;
-  line-height: 24px;
+  color: #f5f5f7;
+  -webkit-text-fill-color: #f5f5f7;
+  font-size: 14px;
+  line-height: 16px;
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
 
 .tab-add:hover {
-  background: var(--hover);
+  background: var(--tab-hover);
 }
 
 .tab-overflow {
   flex: none;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
-  color: var(--fg);
+  color: #f5f5f7;
+  -webkit-text-fill-color: #f5f5f7;
   font: inherit;
-  font-size: 16px;
-  line-height: 24px;
+  font-size: 13px;
+  line-height: 16px;
   letter-spacing: 0.02em;
   cursor: pointer;
   -webkit-app-region: no-drag;
@@ -173,7 +172,7 @@ body {
 
 .tab-overflow:hover,
 .tab-overflow.open {
-  background: var(--hover);
+  background: var(--tab-hover);
 }
 
 .tab-picker {
@@ -184,10 +183,10 @@ body {
   max-height: min(360px, calc(100vh - 80px));
   overflow-y: auto;
   padding: 6px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--tabbar);
+  border: 1px solid var(--tab-hover);
   border-radius: 8px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
 }
 
 .tab-picker[hidden] {
@@ -206,13 +205,13 @@ body {
 
 .tab-picker-item:hover,
 .tab-picker-item.active {
-  background: var(--hover);
+  background: var(--tab-active);
 }
 
 .tab-picker-index {
   flex: none;
   min-width: 1.4em;
-  color: var(--muted);
+  color: var(--tab-muted);
   font-variant-numeric: tabular-nums;
   font-size: 12px;
 }
@@ -227,7 +226,8 @@ body {
   white-space: nowrap;
   border: none;
   background: transparent;
-  color: var(--fg);
+  color: #f5f5f7;
+  -webkit-text-fill-color: #f5f5f7;
   font: inherit;
   font-size: 12px;
   text-align: left;
@@ -242,7 +242,8 @@ body {
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: inherit;
+  color: #f5f5f7;
+  -webkit-text-fill-color: #f5f5f7;
   font-size: 12px;
   line-height: 16px;
   cursor: pointer;
@@ -250,7 +251,7 @@ body {
 }
 
 .tab-picker-close:hover {
-  background: var(--border);
+  background: var(--tab-hover);
   opacity: 1;
 }
 
@@ -370,6 +371,21 @@ body {
 
 .term-host .xterm-viewport {
   overflow-y: auto !important;
+  background-color: transparent;
+}
+
+.term-host .xterm-screen {
+  z-index: 1;
+}
+
+.term-host canvas {
+  /* WKWebView inverts canvases when the page is color-scheme: dark. */
+  color-scheme: light;
+}
+
+.term-host .xterm-accessibility,
+.term-host .xterm-message {
+  -webkit-text-fill-color: transparent;
 }
 
 .ctx-menu {
@@ -395,7 +411,10 @@ body {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--fg);
+  appearance: none;
+  -webkit-appearance: none;
+  color: #00ff00;
+  -webkit-text-fill-color: #00ff00;
   font: inherit;
   font-size: 12px;
   text-align: left;
@@ -466,7 +485,10 @@ body {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--fg);
+  appearance: none;
+  -webkit-appearance: none;
+  color: #00ff00;
+  -webkit-text-fill-color: #00ff00;
   font-size: 13px;
   line-height: 26px;
   cursor: pointer;
