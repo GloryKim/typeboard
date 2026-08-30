@@ -55,7 +55,7 @@ bun run dev
 Production build:
 
 ```bash
-bun run build
+bun run tauri build
 ```
 
 Open http://localhost:5173 and use the button to fetch a message from the backend (`http://127.0.0.1:3001/api/hello`).

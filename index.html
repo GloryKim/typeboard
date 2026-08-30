@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>typeboard</title>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <header class="chrome">
+      <div class="titlebar" id="titlebar" data-tauri-drag-region>
+        <span class="app-title">typeboard</span>
+      </div>
+      <div class="tabbar" id="tabbar">
+        <div class="tabs" id="tabs"></div>
+        <button id="new-tab" class="tab-add" type="button" title="New Tab (⌘T)">+</button>
+      </div>
+    </header>
+    <div id="find-bar" class="find-bar" hidden>
+      <input
+        id="find-input"
+        type="search"
+        placeholder="Find in terminal"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+      />
+      <span id="find-count" class="find-count"></span>
+      <button id="find-prev" type="button" title="Previous (⇧⌘G)">↑</button>
+      <button id="find-next" type="button" title="Next (⌘G)">↓</button>
+      <label class="find-option" title="Case sensitive">
+        <input id="find-case" type="checkbox" />
+        Aa
+      </label>
+      <button id="find-close" type="button" title="Close (Esc)">✕</button>
+    </div>
+    <div id="terminals"></div>
+    <div id="zoom-hud" class="zoom-hud" aria-hidden="true"></div>
+    <div class="resize-handle resize-n" data-resize="North"></div>
+    <div class="resize-handle resize-s" data-resize="South"></div>
+    <div class="resize-handle resize-e" data-resize="East"></div>
+    <div class="resize-handle resize-w" data-resize="West"></div>
+    <div class="resize-handle resize-nw" data-resize="NorthWest"></div>
+    <div class="resize-handle resize-ne" data-resize="NorthEast"></div>
+    <div class="resize-handle resize-sw" data-resize="SouthWest"></div>
+    <div class="resize-handle resize-se" data-resize="SouthEast"></div>
+    <div id="ctx-menu" class="ctx-menu" hidden>
+      <button type="button" data-action="new-tab">New Tab</button>
+      <button type="button" data-action="new-window">New Window</button>
+      <button type="button" data-action="close-tab" id="ctx-close-tab">Close Tab</button>
+    </div>
+  </body>
+</html>
