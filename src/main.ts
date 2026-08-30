@@ -338,6 +338,8 @@ function setupFindBar(getActive: () => Session | null): {
   return { bind, open };
 }
 
+let onTabChromeChange: () => void = () => {};
+
 function stopTitlePoll(session: Session): void {
   if (session.titlePoll !== null) {
     window.clearInterval(session.titlePoll);
@@ -357,6 +359,7 @@ function applyTabTitle(
   if (isActive) {
     setWindowTitle(next);
   }
+  onTabChromeChange();
 }
 
 async function refreshFgName(session: Session): Promise<void> {
@@ -456,9 +459,21 @@ async function main(): Promise<void> {
   const addBtn = document.querySelector<HTMLButtonElement>("#new-tab");
   const titlebar = document.querySelector<HTMLElement>("#titlebar");
   const tabbar = document.querySelector<HTMLElement>("#tabbar");
+  const overflowBtn = document.querySelector<HTMLButtonElement>("#tab-overflow");
+  const picker = document.querySelector<HTMLElement>("#tab-picker");
   const ctx = document.querySelector<HTMLElement>("#ctx-menu");
   const ctxClose = document.querySelector<HTMLButtonElement>("#ctx-close-tab");
-  if (!tabsEl || !terminalsEl || !addBtn || !titlebar || !tabbar || !ctx || !ctxClose) {
+  if (
+    !tabsEl ||
+    !terminalsEl ||
+    !addBtn ||
+    !titlebar ||
+    !tabbar ||
+    !overflowBtn ||
+    !picker ||
+    !ctx ||
+    !ctxClose
+  ) {
     return;
   }
 
@@ -512,6 +527,7 @@ async function main(): Promise<void> {
       fitSession(session);
     }
     showZoomHud(size);
+    syncOverflow();
   };
 
   const bumpFont = (delta: number): void => {
@@ -521,6 +537,135 @@ async function main(): Promise<void> {
     }
     lastZoomAt = now;
     applyFontSize(fontSize + delta);
+  };
+
+  const hidePicker = (): void => {
+    picker.hidden = true;
+    overflowBtn.classList.remove("open");
+  };
+
+  const placePicker = (): void => {
+    const rect = overflowBtn.getBoundingClientRect();
+    picker.style.top = `${rect.bottom + 4}px`;
+    picker.style.left = "auto";
+    picker.style.right = `${Math.max(8, window.innerWidth - rect.right)}px`;
+  };
+
+  const pickerIds = (): number[] =>
+    [...picker.querySelectorAll<HTMLElement>(".tab-picker-item")].map((row) =>
+      Number(row.dataset.id),
+    );
+
+  const selectPickerTab = (id: number): void => {
+    hidePicker();
+    activate(id);
+  };
+
+  const fillPicker = (): void => {
+    picker.replaceChildren();
+    let index = 0;
+    for (const session of sessions.values()) {
+      index += 1;
+      const row = document.createElement("div");
+      row.className = "tab-picker-item";
+      if (session.id === activeId) {
+        row.classList.add("active");
+      }
+      row.dataset.id = String(session.id);
+
+      const num = document.createElement("span");
+      num.className = "tab-picker-index";
+      num.textContent = String(index);
+
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.className = "tab-picker-title";
+      pick.textContent = session.title;
+      pick.title = session.title;
+
+      const close = document.createElement("button");
+      close.type = "button";
+      close.className = "tab-picker-close";
+      close.title = "Close Tab";
+      close.textContent = "×";
+
+      pick.addEventListener("pointerdown", (ev) => {
+        if (ev.button !== 0) {
+          return;
+        }
+        ev.preventDefault();
+        ev.stopPropagation();
+        selectPickerTab(session.id);
+      });
+      close.addEventListener("pointerdown", (ev) => {
+        if (ev.button !== 0) {
+          return;
+        }
+        ev.preventDefault();
+        ev.stopPropagation();
+        void closeTab(session.id);
+      });
+
+      row.append(num, pick, close);
+      picker.append(row);
+    }
+  };
+
+  const refreshPicker = (): void => {
+    if (picker.hidden) {
+      return;
+    }
+    const ids = [...sessions.keys()];
+    const rows = pickerIds();
+    const same =
+      ids.length === rows.length && ids.every((id, i) => id === rows[i]);
+    if (!same) {
+      fillPicker();
+    } else {
+      let index = 0;
+      for (const session of sessions.values()) {
+        const row = picker.children[index] as HTMLElement | undefined;
+        index += 1;
+        if (!row) {
+          continue;
+        }
+        row.classList.toggle("active", session.id === activeId);
+        const title = row.querySelector(".tab-picker-title");
+        const num = row.querySelector(".tab-picker-index");
+        if (title) {
+          title.textContent = session.title;
+          title.setAttribute("title", session.title);
+        }
+        if (num) {
+          num.textContent = String(index);
+        }
+      }
+    }
+    placePicker();
+  };
+
+  const showPicker = (): void => {
+    hideCtx();
+    fillPicker();
+    picker.hidden = false;
+    overflowBtn.classList.add("open");
+    placePicker();
+  };
+
+  const syncOverflow = (): void => {
+    requestAnimationFrame(() => {
+      const overflowing = tabsEl.scrollWidth > tabsEl.clientWidth + 1;
+      overflowBtn.hidden = !overflowing;
+      if (!overflowing) {
+        hidePicker();
+        return;
+      }
+      refreshPicker();
+    });
+  };
+
+  onTabChromeChange = () => {
+    refreshPicker();
   };
 
   const activate = (id: number): void => {
@@ -536,6 +681,8 @@ async function main(): Promise<void> {
     fitSession(session);
     session.term.focus();
     setWindowTitle(session.title);
+    session.tabBtn.scrollIntoView({ inline: "nearest", block: "nearest" });
+    syncOverflow();
   };
 
   const addTab = async (): Promise<Session | null> => {
@@ -662,6 +809,7 @@ async function main(): Promise<void> {
       const message = err instanceof Error ? err.message : String(err);
       term.write(`\r\nFailed to start shell:\r\n${message}\r\n`);
     }
+    syncOverflow();
     return session;
   };
 
@@ -688,6 +836,7 @@ async function main(): Promise<void> {
         activate(last);
       }
     }
+    syncOverflow();
   };
 
   const hideCtx = (): void => {
@@ -696,6 +845,7 @@ async function main(): Promise<void> {
   };
 
   const showCtx = (x: number, y: number, tabId: number | null): void => {
+    hidePicker();
     ctxTabId = tabId;
     ctxClose.hidden = tabId === null;
     ctx.hidden = false;
@@ -707,6 +857,19 @@ async function main(): Promise<void> {
 
   addBtn.addEventListener("click", () => {
     void addTab();
+  });
+
+  overflowBtn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    if (picker.hidden) {
+      showPicker();
+    } else {
+      hidePicker();
+    }
+  });
+
+  picker.addEventListener("click", (ev) => {
+    ev.stopPropagation();
   });
 
   titlebar.addEventListener("contextmenu", (ev) => {
@@ -739,12 +902,23 @@ async function main(): Promise<void> {
     }
   });
 
-  window.addEventListener("click", () => hideCtx());
-  window.addEventListener("blur", () => hideCtx());
+  window.addEventListener("click", () => {
+    hideCtx();
+    hidePicker();
+  });
+  window.addEventListener("blur", () => {
+    hideCtx();
+    hidePicker();
+  });
 
   window.addEventListener(
     "keydown",
     (ev) => {
+      if (ev.key === "Escape" && !picker.hidden) {
+        ev.preventDefault();
+        hidePicker();
+        return;
+      }
       const meta = ev.metaKey || ev.ctrlKey;
       if (!meta || ev.altKey) {
         return;
@@ -838,13 +1012,14 @@ async function main(): Promise<void> {
     window.clearTimeout(resizeTimer);
     resizeTimer = window.setTimeout(() => {
       const session = getActive();
-      if (!session) {
-        return;
+      if (session) {
+        fitSession(session);
       }
-      fitSession(session);
+      syncOverflow();
     }, 16);
   });
   observer.observe(terminalsEl);
+  observer.observe(tabsEl);
 
   window.addEventListener("beforeunload", () => {
     if (disposing) {

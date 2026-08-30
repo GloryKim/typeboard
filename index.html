@@ -14,6 +14,7 @@
       </div>
       <div class="tabbar" id="tabbar">
         <div class="tabs" id="tabs"></div>
+        <button id="tab-overflow" class="tab-overflow" type="button" title="All Tabs" hidden>…</button>
         <button id="new-tab" class="tab-add" type="button" title="New Tab (⌘T)">+</button>
       </div>
     </header>
@@ -45,6 +46,7 @@
     <div class="resize-handle resize-ne" data-resize="NorthEast"></div>
     <div class="resize-handle resize-sw" data-resize="SouthWest"></div>
     <div class="resize-handle resize-se" data-resize="SouthEast"></div>
+    <div id="tab-picker" class="tab-picker" hidden></div>
     <div id="ctx-menu" class="ctx-menu" hidden>
       <button type="button" data-action="new-tab">New Tab</button>
       <button type="button" data-action="new-window">New Window</button>

@@ -154,6 +154,106 @@ body {
   background: var(--hover);
 }
 
+.tab-overflow {
+  flex: none;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.tab-overflow:hover,
+.tab-overflow.open {
+  background: var(--hover);
+}
+
+.tab-picker {
+  position: fixed;
+  z-index: 41;
+  min-width: 220px;
+  max-width: min(360px, calc(100vw - 16px));
+  max-height: min(360px, calc(100vh - 80px));
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
+}
+
+.tab-picker[hidden] {
+  display: none !important;
+}
+
+.tab-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 6px 0 8px;
+  border-radius: 6px;
+}
+
+.tab-picker-item:hover,
+.tab-picker-item.active {
+  background: var(--hover);
+}
+
+.tab-picker-index {
+  flex: none;
+  min-width: 1.4em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.tab-picker-title {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tab-picker-close {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.tab-picker-close:hover {
+  background: var(--border);
+  opacity: 1;
+}
+
 .resize-handle {
   position: fixed;
   z-index: 50;
