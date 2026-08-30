@@ -1,150 +1,195 @@
 # typeboard
 
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![Tokio](https://img.shields.io/badge/async-Tokio-black?logo=tokio&logoColor=white)](https://tokio.rs/)
-[![Axum](https://img.shields.io/badge/http-Axum-4B275F?logo=rust&logoColor=white)](https://github.com/tokio-rs/axum)
-[![React](https://img.shields.io/badge/ui-React-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Tauri](https://img.shields.io/badge/desktop-Tauri%202-24C8DB?logo=tauri&logoColor=white)](https://tauri.app/)
 [![TypeScript](https://img.shields.io/badge/lang-TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Bun](https://img.shields.io/badge/runtime-Bun-fbf0df?logo=bun&logoColor=black)](https://bun.sh/)
+[![xterm.js](https://img.shields.io/badge/term-xterm.js-000000?logo=xterm&logoColor=white)](https://xtermjs.org/)
+[![portable-pty](https://img.shields.io/badge/pty-portable--pty-dea584?logo=rust&logoColor=white)](https://crates.io/crates/portable-pty)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
 
-**typeboard** aims to send and receive API signals in Rust, then visualize them on a dashboard.
+**typeboard** is a native terminal emulator: a real PTY shell in Rust, rendered with xterm.js, wrapped as a desktop app by Tauri 2.
 
-The repo currently ships a minimal scaffold (Axum API + React/TypeScript UI). Over time it will grow into a practical playground for real-world Rust backend patterns—async I/O, HTTP stacks, CPU-bound parallelism, observability, and more.
+The frontend is Vite + TypeScript, installed and run with Bun. The backend owns the process: spawn `$SHELL` (login shell on macOS), shuttle bytes over Tauri IPC channels, and keep the PTY grid in sync with the window. Tabs, extra windows, find-in-buffer, and font zoom sit on top of that loop.
 
-Bun is the frontend toolchain today, and a second study track in [`docs/bun`](./docs/bun/): native `Bun.serve` HTTP/WebSocket (no Express/Hono), zero-dependency TS servers, and comparisons against Go/Deno. Recent Bun releases (1.3.x → Rust rewrite toward 1.4) make that track especially useful next to the Axum/Tokio work.
+This is a working terminal, not a toy `exec` wrapper. Programs that need a TTY — vim, htop, colored prompts, OSC title sequences — behave as they would in a system terminal.
+
+The same repo keeps a **study track** under [`docs/`](./docs/): Rust language, Tokio / Axum / hyper / reqwest / serde, Bun-native HTTP, MSA patterns, CS, security, and LLM notes. Those pages are not the app manual — they are how this project thinks about systems work next to the desktop shell.
 
 ---
 
 ## Goals
 
-- Own **signal ingress/egress** in Rust (HTTP, events, and related I/O) with Axum / Tokio
-- **Monitor and visualize** those signals on a frontend dashboard
-- Move beyond toy demos: adopt production-minded patterns for persistence, caching, observability, auth, and deploy—step by step
-- Keep a **Bun-native** reference path (`Bun.serve`, built-in WS/SQL/Redis notes) for fast TS prototypes and closed-network / dependency-zero experiments
+- Own **PTY I/O in Rust** (`portable-pty`): spawn, write, resize, teardown
+- Render a **GPU-backed terminal** (xterm.js + WebGL) with a small custom chrome
+- Support **multiple sessions per window** and **multiple app windows**
+- Keep the UI native on macOS: overlay titlebar, Dock “New Window”, system menus
+- Stay **Bun-native** for the frontend toolchain (`bun install`, Vite, Tauri CLI)
+- Keep **written notes** in `docs/` for the Rust async / HTTP / Bun stack that sits beside the app
 
 ---
 
 ## Getting started
 
-### API (`api/`, port 3002)
+### Prerequisites
+
+- [Bun](https://bun.sh) 1.4+
+- [Rust](https://rustup.rs) (stable)
+- macOS: Xcode Command Line Tools
+
+### Dev
 
 ```bash
-cd api
-cargo run
-```
-
-### Starter backend (`backend/`, port 3001)
-
-```bash
-cd backend
-cargo run
-```
-
-### Frontend (`frontend/`, port 5173)
-
-Vite + React + **TypeScript**, installed and run with **Bun**.
-
-```bash
-cd frontend
-
 bun install
-bun run dev
+bun run tauri dev
 ```
 
-Production build:
+Vite serves the UI on `http://localhost:1420`. Tauri loads that URL in a native window and talks to the Rust sidecar over IPC.
+
+### Release bundle
 
 ```bash
 bun run tauri build
 ```
 
-Open http://localhost:5173 and use the button to fetch a message from the backend (`http://127.0.0.1:3001/api/hello`).
-
-### Bun notes (optional)
-
-Study / experiment with Bun alone (no Vite app required)—see [`docs/bun`](./docs/bun/). Typical entry points:
-
-```bash
-# hot-reload a Bun.serve script
-bun --hot path/to/server.ts
-
-# package manager / scripts (frontend)
-bun install && bun run dev
-```
+The macOS app lands under `src-tauri/target/release/bundle/macos/` as `typeboard.app` (`com.async.typeboard`).
 
 ---
 
-## Stack notes
+## Stack
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Signal / HTTP (Rust) | Axum · Tokio · hyper | Primary path for API signals |
-| Dashboard UI | React · TypeScript · Vite | Served via Bun install / scripts |
-| TS / realtime experiments | Bun (`Bun.serve`, native WebSocket) | Routing, pub/sub WS, SSE, HTML import, `--hot` |
-| Package / lockfile | `bun.lock` | Text lockfile; isolated linker available in recent Bun |
-
-Bun 1.3.x highlights that matter for this repo’s direction (not all wired into the scaffold yet):
-
-- **`Bun.serve`** — built-in routing, cookies, metrics, Range requests, experimental **HTTP/3 (QUIC)**
-- **Realtime** — native WebSocket (+ client `ws+unix://`), same-process HTTP upgrade
-- **Data** — unified `Bun.SQL` (Postgres / MySQL / SQLite), built-in Redis client
-- **Tooling** — `bun test` (`--parallel` / `--isolate` / `--shard`), `bun build --compile` (incl. browser HTML), `--metafile-md` for LLM-friendly bundle graphs
-- **Runtime extras** — `Bun.markdown`, `Bun.Image`, `Bun.cron`, native REPL
-- **Implementation** — Bun is moving from Zig → **Rust** (v1.4 canary); useful context while studying Rust HTTP stacks here
+| Desktop shell | [Tauri 2](https://tauri.app/) | Native window, menus, IPC, macOS overlay titlebar |
+| PTY | [`portable-pty`](https://crates.io/crates/portable-pty) | Real shell session; `$SHELL -l` on macOS |
+| Terminal UI | [xterm.js](https://xtermjs.org/) + WebGL | Grid, selection, links, search |
+| Frontend | TypeScript · Vite | Vanilla TS (no React) |
+| Package / lockfile | Bun 1.4 · `bun.lock` | `packageManager`: `bun@1.4.0` |
+| Theme | Catppuccin Mocha | Default palette |
+| Study notes | [`docs/`](./docs/) | Rust, async HTTP, Bun, MSA, CS — see below |
 
 ---
 
-## Planned Rust ecosystem
+## Architecture
 
-Priorities may shift, but the direction is to layer in mature crates from the Rust async and web ecosystem.
+```
+┌─────────────────────────────────────────┐
+│  Vite / TypeScript  (src/)              │
+│  xterm.js · Fit · Search · WebGL        │
+│  tabs, find, zoom, drag / resize chrome │
+└─────────────────┬───────────────────────┘
+                  │ Tauri IPC (Channel)
+┌─────────────────▼───────────────────────┐
+│  Rust  (src-tauri/)                     │
+│  pty.rs      spawn / write / resize     │
+│  windows.rs  extra windows, app menu    │
+│  macos_dock.rs  Dock context menu       │
+└─────────────────────────────────────────┘
+```
 
-### Core async & HTTP
+- **`pty.rs`** — session map, `portable-pty` master/writer, reader thread pushing bytes to a frontend `Channel`. `TERM_PROGRAM=typeboard`.
+- **`src/main.ts`** — one xterm instance per tab; OSC titles; find (`⌘F`); font size in `localStorage` (`typeboard.fontSize`).
+- **`windows.rs`** — `⌘N` / menu “New Window”; clone windows with the same webview.
+- **`macos_dock.rs`** — NSApplication `dockMenu` via objc2 (“New Window”).
 
-| Area | Crate / project | Role |
-|---|---|---|
-| Async runtime | [Tokio](https://github.com/tokio-rs/tokio) | Tasks, timers, networking, concurrency |
-| Futures primitives | [futures-rs](https://github.com/rust-lang/futures-rs) | Combinators, streams, and `Future` utilities beyond Tokio’s surface |
-| Async traits | [async-trait](https://github.com/dtolnay/async-trait) | `async fn` in traits for service boundaries and handlers |
-| Low-level HTTP | [hyper](https://github.com/hyperium/hyper) | HTTP/1–2 client/server foundation under Axum / reqwest |
-| HTTP routing | [Axum](https://github.com/tokio-rs/axum) + [Tower](https://github.com/tower-rs/tower) | API surface, middleware, backpressure |
-| HTTP client | [reqwest](https://github.com/seanmonstar/reqwest) | Outbound calls to internal/external services |
-| Serialization | [serde](https://github.com/serde-rs/serde) | Request/response JSON and config |
+Capabilities live in `src-tauri/capabilities/default.json` (`windows: ["*"]`, drag / resize / title).
 
-### Parallelism & UI direction
+---
 
-| Area | Crate / project | Role |
-|---|---|---|
-| Data-parallel CPU work | [rayon](https://github.com/rayon-rs/rayon) | Parallel iterators / thread-pool work off the async runtime |
-| Full-stack reactive UI (explore) | [Topcoat](https://github.com/tokio-rs/topcoat) | Server-rendered reactive web apps in Rust (complementary to the React dashboard) |
+## Shortcuts
 
-### Ops & product surface
+| Key | Action |
+|---|---|
+| typing | forwarded to the PTY |
+| `⌘C` (with selection) | copy |
+| `⌘V` | paste |
+| `⌘T` / tab-bar **+** | new tab |
+| `⌘N` / File → New Window | new window |
+| Dock icon (right-click) | New Window |
+| tab bar (right-click) | new tab / new window |
+| `⌘W` | close tab (last tab closes the window) |
+| `⇧⌘W` | close window |
+| `⌘F` | find in terminal output |
+| `⌘G` / `⇧⌘G` | next / previous match |
+| titlebar drag | move window |
+| window edges / corners | resize |
+| `⌘+` / `⌘=` | larger font |
+| `⌘-` | smaller font |
+| `⌘0` | reset font |
+| `Esc` | close find |
+| any key after shell exit | restart session |
 
-| Area | Candidates | Role |
-|---|---|---|
-| Database | sqlx (+ PostgreSQL), rusqlite / SQLite; compare with `Bun.SQL` / `bun:sqlite` notes | Durable storage |
-| Cache / locks | Redis (Rust client); compare with Bun’s built-in Redis | Sessions, rate limits, short-lived queues |
-| Realtime | WebSocket / SSE (Axum · `Bun.serve`) | Live dashboard updates |
-| Observability | tracing, metrics | Logs, traces, metrics |
-| Config | config / dotenv | Environment-specific settings |
-| Auth | JWT (and related) | Protect APIs and the dashboard |
-| Deploy | Docker Compose | Local and staging bring-up |
+Font size is remembered per window. Chrome (tabs, titlebar) scales with it. Resizing the window refits the grid and the PTY.
+
+---
+
+## Layout
+
+```
+src/                 frontend (Vite + TypeScript)
+src-tauri/src/       Rust: PTY, windows, Dock menu
+src-tauri/tauri.conf.json
+index.html           overlay titlebar + tab bar
+docs/                study notes (not the app UI)
+```
 
 ---
 
 ## Docs
 
-Study notes live under [`docs/`](./docs/):
+[`docs/`](./docs/) is a dated notebook, not generated API docs. Filenames often look like `YYMMDD_HHMM_topic.md`. Start from a folder `readme.md` when one exists; otherwise open the latest file in that directory.
 
-| Topic | Path |
+The terminal binary does not import these pages. They are the written half of the same workspace: how Rust async I/O, HTTP stacks, and Bun-native servers actually behave, so the desktop PTY work sits next to a systems vocabulary.
+
+Typical entry:
+
+```bash
+# hot-reload a Bun.serve script from the notes
+bun --hot path/to/server.ts
+```
+
+### Language & crates
+
+| Path | What it is |
 |---|---|
-| Rust | [`docs/rust`](./docs/rust/) |
-| Tokio | [`docs/tokio/readme.md`](./docs/tokio/readme.md) |
-| Axum | [`docs/axum`](./docs/axum/) |
-| Hyper | [`docs/hyper`](./docs/hyper/) |
-| reqwest | [`docs/reqwest`](./docs/reqwest/) |
-| Serde | [`docs/serde`](./docs/serde/) |
-| rusqlite | [`docs/rusqlite`](./docs/rusqlite/) |
-| Bun | [`docs/bun`](./docs/bun/) |
-| MSA with Axum | [`docs/msa/readme.md`](./docs/msa/readme.md) |
-| CS notes | [`docs/cs`](./docs/cs/) |
-| LLM notes | [`docs/llm`](./docs/llm/) |
+| [`docs/rust`](./docs/rust/) | Rust grammar roadmap (ownership through async). Start at [`readme.md`](./docs/rust/readme.md). |
+| [`docs/serde`](./docs/serde/) | Serde / `serde_json`: attributes, enums, Axum·reqwest, `RawValue`. |
+| [`docs/rusqlite`](./docs/rusqlite/) | SQLite from Rust: bindings, transactions, concurrency vs the C API. |
+
+### Async & HTTP
+
+| Path | What it is |
+|---|---|
+| [`docs/tokio`](./docs/tokio/) | Tokio runtime: tasks, `poll` / Waker, thread pool, timers / TCP. [`readme.md`](./docs/tokio/readme.md) then `01.md`–`06.md`. |
+| [`docs/axum`](./docs/axum/) | Axum routing, extractors, JSON, middleware — concept → code → checkpoint. |
+| [`docs/hyper`](./docs/hyper/) | Hyper 1.x under Axum / reqwest: the HTTP layer you rarely call directly. |
+| [`docs/reqwest`](./docs/reqwest/) | Outbound HTTP from an Axum process (sender / receiver examples). |
+| [`docs/msa`](./docs/msa/) | NestJS / Spring-scale MSA on Axum: workspace, sqlx, Redis, gateway, messaging, tracing, deploy. [`readme.md`](./docs/msa/readme.md). |
+
+### Bun
+
+[`docs/bun`](./docs/bun/) is the TypeScript / runtime track: `Bun.serve` without Express/Hono, native WebSocket, file I/O, CORS, benchmarks, Bun vs Go / Deno, Kafka wire encoding, and the Bun 1.4 report (`Bun.Image`, `Bun.markdown`, `Bun.cron`, experimental HTTP/3, `bun test --parallel`).
+
+Bun 1.3.x–1.4 highlights that show up in those notes (not all wired into the Tauri app):
+
+- **`Bun.serve`** — routing, cookies, Range, experimental HTTP/3 (QUIC)
+- **Realtime** — native WebSocket, same-process HTTP upgrade
+- **Data** — `Bun.SQL`, built-in Redis client
+- **Tooling** — `bun test`, `bun build --compile`, `--metafile-md`
+- **Runtime extras** — `Bun.markdown`, `Bun.Image`, `Bun.cron`
+
+### Systems, security, models
+
+| Path | What it is |
+|---|---|
+| [`docs/cs`](./docs/cs/) | CS / ops notes: locks, ACL vs SG/NACL, SRE golden signals, latency numbers, cross-build (Go/Rust/Bun), clean-room rewrites, transfer strategy. |
+| [`docs/security`](./docs/security/) | PII encryption obligations and implementation (Korea-focused; not legal advice). |
+| [`docs/llm`](./docs/llm/) | Model internals — GQA, Kimi K3 architecture / training / infra. |
+
+---
+
+## Status
+
+Early but usable on macOS. Linux / Windows PTY paths from `portable-pty` are unproven here. Identifier is `com.async.typeboard`.
+
+Licensed under [Apache 2.0](./LICENSE).
