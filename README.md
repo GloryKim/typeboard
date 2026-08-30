@@ -16,6 +16,10 @@ This is a working terminal, not a toy `exec` wrapper. Programs that need a TTY â
 
 The same repo keeps a **study track** under [`docs/`](./docs/): Rust language, Tokio / Axum / hyper / reqwest / serde, Bun-native HTTP, MSA patterns, CS, security, and LLM notes. Those pages are not the app manual â€” they are how this project thinks about systems work next to the desktop shell.
 
+<p align="center">
+  <video src="./assets/demo.mp4" autoplay loop muted playsinline width="800"></video>
+</p>
+
 ---
 
 ## Goals
