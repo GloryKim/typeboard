@@ -17,7 +17,7 @@
         "height": 640,
         "minWidth": 400,
         "minHeight": 220,
-        "backgroundColor": "#1e1e2e",
+        "backgroundColor": "#000000",
         "theme": "Dark",
         "resizable": true,
         "decorations": true,

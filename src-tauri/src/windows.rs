@@ -18,7 +18,7 @@ pub fn open_window(app: &AppHandle) -> Result<(), String> {
         .decorations(true)
         .focused(true)
         .theme(Some(tauri::Theme::Dark))
-        .background_color(tauri::window::Color(0x1e, 0x1e, 0x2e, 0xff));
+        .background_color(tauri::window::Color(0x00, 0x00, 0x00, 0xff));
 
     #[cfg(target_os = "macos")]
     {

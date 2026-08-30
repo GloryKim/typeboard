@@ -1,9 +1,14 @@
 :root {
   color-scheme: dark;
-  --bg: #1e1e2e;
-  --titlebar: #181825;
-  --fg: #cdd6f4;
-  --muted: #6c7086;
+  --bg: #000000;
+  --titlebar: #050505;
+  --tabbar: #000000;
+  --fg: #00ff00;
+  --muted: #1a8f1a;
+  --surface: #0a0a0a;
+  --hover: #003300;
+  --border: #004d00;
+  --danger: #ff3333;
   --ui-scale: 1;
   --titlebar-height: calc(38px * var(--ui-scale));
   --tabbar-height: calc(34px * var(--ui-scale));
@@ -57,8 +62,8 @@ body {
   align-items: center;
   padding: 0 8px;
   gap: 4px;
-  background: #11111b;
-  border-bottom: 1px solid #313244;
+  background: var(--tabbar);
+  border-bottom: 1px solid var(--border);
   -webkit-app-region: no-drag;
 }
 
@@ -93,12 +98,12 @@ body {
 }
 
 .tab:hover {
-  background: #313244;
+  background: var(--hover);
   color: var(--fg);
 }
 
 .tab.active {
-  background: #313244;
+  background: var(--hover);
   color: var(--fg);
 }
 
@@ -126,7 +131,7 @@ body {
 }
 
 .tab-close:hover {
-  background: #45475a;
+  background: var(--border);
   opacity: 1;
 }
 
@@ -146,11 +151,7 @@ body {
 }
 
 .tab-add:hover {
-  background: #313244;
-}
-
-.tab-add:hover {
-  background: #313244;
+  background: var(--hover);
 }
 
 .resize-handle {
@@ -231,8 +232,8 @@ body {
   transform: translateX(-50%);
   padding: 6px 12px;
   border-radius: 8px;
-  background: #313244ee;
-  border: 1px solid #45475a;
+  background: #0a0a0aee;
+  border: 1px solid var(--border);
   color: var(--fg);
   font-size: calc(12px * var(--ui-scale));
   pointer-events: none;
@@ -276,10 +277,10 @@ body {
   z-index: 40;
   min-width: 168px;
   padding: 4px;
-  background: #313244;
-  border: 1px solid #45475a;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
 }
 
 .ctx-menu[hidden] {
@@ -302,7 +303,7 @@ body {
 }
 
 .ctx-menu button:hover {
-  background: #45475a;
+  background: var(--hover);
 }
 
 .find-bar {
@@ -314,10 +315,10 @@ body {
   align-items: center;
   gap: 4px;
   padding: 6px 8px;
-  background: #313244;
-  border: 1px solid #45475a;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
 }
 
 .find-bar[hidden] {
@@ -328,9 +329,9 @@ body {
   width: 180px;
   height: 26px;
   padding: 0 8px;
-  border: 1px solid #45475a;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #1e1e2e;
+  background: var(--bg);
   color: var(--fg);
   font: inherit;
   font-size: 12px;
@@ -338,7 +339,7 @@ body {
 }
 
 .find-bar input[type="search"]:focus {
-  border-color: #89b4fa;
+  border-color: var(--fg);
 }
 
 .find-bar input[type="search"]::-webkit-search-cancel-button {
@@ -355,7 +356,7 @@ body {
 }
 
 .find-count.none {
-  color: #f38ba8;
+  color: var(--danger);
 }
 
 .find-bar button {
@@ -372,7 +373,7 @@ body {
 }
 
 .find-bar button:hover {
-  background: #45475a;
+  background: var(--hover);
 }
 
 .find-option {
@@ -391,11 +392,11 @@ body {
 }
 
 .find-option:has(input:checked) {
-  background: #45475a;
+  background: var(--hover);
   color: var(--fg);
 }
 
 .find-option input {
   margin: 0;
-  accent-color: #89b4fa;
+  accent-color: var(--fg);
 }

@@ -69,7 +69,7 @@ The macOS app lands under `src-tauri/target/release/bundle/macos/` as `typeboard
 | Terminal UI | [xterm.js](https://xtermjs.org/) + WebGL | Grid, selection, links, search |
 | Frontend | TypeScript · Vite | Vanilla TS (no React) |
 | Package / lockfile | Bun 1.4 · `bun.lock` | `packageManager`: `bun@1.4.0` |
-| Theme | Catppuccin Mocha | Default palette |
+| Theme | Homebrew | Black background, green text |
 | Study notes | [`docs/`](./docs/) | Rust, async HTTP, Bun, MSA, CS — see below |
 
 ---
