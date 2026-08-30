@@ -18,6 +18,7 @@ pub fn run() {
             pty::pty_write,
             pty::pty_resize,
             pty::pty_close,
+            pty::pty_tab_title,
             windows::new_window,
         ])
         .setup(|app| {

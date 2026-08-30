@@ -205,3 +205,166 @@ pub fn pty_close(state: State<PtyState>, id: u32) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[tauri::command]
+pub fn pty_tab_title(state: State<PtyState>, id: u32) -> Result<Option<String>, String> {
+    let session = state.get(id)?;
+    let master = session.master.lock().map_err(|e| e.to_string())?;
+    Ok(foreground_label(&**master))
+}
+
+fn foreground_label(master: &dyn MasterPty) -> Option<String> {
+    #[cfg(unix)]
+    {
+        let pgid = master.process_group_leader()?;
+        pick_label(&process_group_names(pgid))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = master;
+        None
+    }
+}
+
+#[cfg(unix)]
+fn pick_label(names: &[String]) -> Option<String> {
+    const SHELLS: &[&str] = &[
+        "zsh",
+        "bash",
+        "fish",
+        "sh",
+        "dash",
+        "ksh",
+        "csh",
+        "tcsh",
+        "pwsh",
+        "powershell",
+        "login",
+    ];
+    const WRAPPERS: &[&str] = &[
+        "sudo", "doas", "env", "nice", "nohup", "time", "stdbuf", "unbuffer", "script",
+    ];
+
+    let cleaned: Vec<String> = names
+        .iter()
+        .map(|n| n.trim().trim_start_matches('-').to_string())
+        .filter(|n| !n.is_empty())
+        .collect();
+
+    cleaned
+        .iter()
+        .find(|n| !SHELLS.contains(&n.as_str()) && !WRAPPERS.contains(&n.as_str()))
+        .cloned()
+        .or_else(|| {
+            cleaned
+                .iter()
+                .find(|n| !SHELLS.contains(&n.as_str()))
+                .cloned()
+        })
+        .or_else(|| cleaned.last().cloned())
+}
+
+#[cfg(target_os = "macos")]
+fn process_name(pid: libc::pid_t) -> Option<String> {
+    let mut buf = [0u8; 64];
+    let n = unsafe {
+        libc::proc_name(
+            pid,
+            buf.as_mut_ptr() as *mut libc::c_void,
+            buf.len() as u32,
+        )
+    };
+    if n <= 0 {
+        return None;
+    }
+    let n = (n as usize).min(buf.len());
+    let s = String::from_utf8_lossy(&buf[..n])
+        .trim_end_matches('\0')
+        .trim()
+        .to_string();
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn process_group_names(pgid: libc::pid_t) -> Vec<String> {
+    const PROC_PGRP_ONLY: u32 = 2;
+    let needed =
+        unsafe { libc::proc_listpids(PROC_PGRP_ONLY, pgid as u32, std::ptr::null_mut(), 0) };
+    if needed <= 0 {
+        return process_name(pgid).into_iter().collect();
+    }
+    let cap = (needed as usize / std::mem::size_of::<libc::pid_t>()).max(8);
+    let mut pids = vec![0 as libc::pid_t; cap];
+    let got = unsafe {
+        libc::proc_listpids(
+            PROC_PGRP_ONLY,
+            pgid as u32,
+            pids.as_mut_ptr() as *mut libc::c_void,
+            (pids.len() * std::mem::size_of::<libc::pid_t>()) as i32,
+        )
+    };
+    if got <= 0 {
+        return process_name(pgid).into_iter().collect();
+    }
+    let n = got as usize / std::mem::size_of::<libc::pid_t>();
+    let names: Vec<String> = pids
+        .into_iter()
+        .take(n)
+        .filter(|p| *p > 0)
+        .filter_map(process_name)
+        .collect();
+    if names.is_empty() {
+        process_name(pgid).into_iter().collect()
+    } else {
+        names
+    }
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn process_name(pid: libc::pid_t) -> Option<String> {
+    let s = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok()?;
+    let n = s.trim();
+    if n.is_empty() {
+        None
+    } else {
+        Some(n.to_string())
+    }
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn parse_pgrp(stat: &str) -> Option<libc::pid_t> {
+    let close = stat.rfind(')')?;
+    let rest = stat.get(close + 1..)?;
+    rest.split_whitespace().nth(2)?.parse().ok()
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn process_group_names(pgid: libc::pid_t) -> Vec<String> {
+    let mut names = Vec::new();
+    let Ok(rd) = std::fs::read_dir("/proc") else {
+        return process_name(pgid).into_iter().collect();
+    };
+    for ent in rd.flatten() {
+        let pid: libc::pid_t = match ent.file_name().to_str().and_then(|s| s.parse().ok()) {
+            Some(p) => p,
+            None => continue,
+        };
+        let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+            continue;
+        };
+        if parse_pgrp(&stat) != Some(pgid) {
+            continue;
+        }
+        if let Some(n) = process_name(pid) {
+            names.push(n);
+        }
+    }
+    if names.is_empty() {
+        names.extend(process_name(pgid));
+    }
+    names
+}

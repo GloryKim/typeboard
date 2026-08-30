@@ -43,10 +43,29 @@ const SEARCH_DECORATIONS: NonNullable<ISearchOptions["decorations"]> = {
   activeMatchColorOverviewRuler: "#89b4fa",
 };
 
+const SHELL_NAMES = new Set([
+  "zsh",
+  "bash",
+  "fish",
+  "sh",
+  "dash",
+  "ksh",
+  "csh",
+  "tcsh",
+  "pwsh",
+  "powershell",
+  "login",
+]);
+
+const MAX_TAB_LABEL = 22;
+
 type Session = {
   id: number;
   ptyId: number | null;
   title: string;
+  oscTitle: string | null;
+  fgName: string | null;
+  titlePoll: number | null;
   host: HTMLElement;
   tabBtn: HTMLButtonElement;
   titleEl: HTMLElement;
@@ -54,6 +73,52 @@ type Session = {
   fit: FitAddon;
   search: SearchAddon;
 };
+
+function isShellName(name: string): boolean {
+  return SHELL_NAMES.has(name.toLowerCase());
+}
+
+function shortenOsc(raw: string | null): string | null {
+  if (!raw) {
+    return null;
+  }
+  let text = raw.trim();
+  if (!text || text === "Terminal" || text === "typeboard") {
+    return null;
+  }
+  const colon = text.lastIndexOf(": ");
+  if (colon >= 0) {
+    text = text.slice(colon + 2).trim();
+  }
+  const slash = Math.max(text.lastIndexOf("/"), text.lastIndexOf("\\"));
+  if (slash >= 0 && slash < text.length - 1) {
+    text = text.slice(slash + 1);
+  }
+  text = text.replace(/^~\/?/, "");
+  return text || null;
+}
+
+function tabLabel(session: Session): string {
+  const fg = session.fgName?.trim() || null;
+  if (fg && !isShellName(fg)) {
+    return truncateLabel(fg);
+  }
+  const osc = shortenOsc(session.oscTitle);
+  if (osc) {
+    return truncateLabel(osc);
+  }
+  if (fg) {
+    return truncateLabel(fg);
+  }
+  return "zsh";
+}
+
+function truncateLabel(text: string): string {
+  if (text.length <= MAX_TAB_LABEL) {
+    return text;
+  }
+  return `${text.slice(0, MAX_TAB_LABEL - 1)}…`;
+}
 
 function toBytes(message: unknown): Uint8Array {
   if (message instanceof Uint8Array) {
@@ -273,7 +338,59 @@ function setupFindBar(getActive: () => Session | null): {
   return { bind, open };
 }
 
-async function spawnSession(session: Session): Promise<void> {
+function stopTitlePoll(session: Session): void {
+  if (session.titlePoll !== null) {
+    window.clearInterval(session.titlePoll);
+    session.titlePoll = null;
+  }
+}
+
+function applyTabTitle(
+  session: Session,
+  setWindowTitle: (title: string) => void,
+  isActive: boolean,
+): void {
+  const next = tabLabel(session);
+  session.title = next;
+  session.titleEl.textContent = next;
+  session.tabBtn.title = next;
+  if (isActive) {
+    setWindowTitle(next);
+  }
+}
+
+async function refreshFgName(session: Session): Promise<void> {
+  if (session.ptyId === null) {
+    return;
+  }
+  try {
+    const name = await invoke<string | null>("pty_tab_title", { id: session.ptyId });
+    session.fgName = name;
+  } catch {
+    // PTY may have closed between polls.
+  }
+}
+
+function startTitlePoll(
+  session: Session,
+  setWindowTitle: (title: string) => void,
+  isActive: () => boolean,
+): void {
+  stopTitlePoll(session);
+  const tick = (): void => {
+    void refreshFgName(session).then(() => {
+      applyTabTitle(session, setWindowTitle, isActive());
+    });
+  };
+  tick();
+  session.titlePoll = window.setInterval(tick, 400);
+}
+
+async function spawnSession(
+  session: Session,
+  setWindowTitle: (title: string) => void,
+  isActive: () => boolean,
+): Promise<void> {
   const onData = new Channel<unknown>();
   onData.onmessage = (message) => {
     session.term.write(toBytes(message));
@@ -281,6 +398,7 @@ async function spawnSession(session: Session): Promise<void> {
 
   const onExit = new Channel<number>();
   onExit.onmessage = (code) => {
+    stopTitlePoll(session);
     if (session.ptyId !== null) {
       session.ptyId = null;
     }
@@ -289,7 +407,7 @@ async function spawnSession(session: Session): Promise<void> {
     session.term.write("Press any key to restart.\r\n");
     const disposable = session.term.onData(() => {
       disposable.dispose();
-      void restartSession(session);
+      void restartSession(session, setWindowTitle, isActive);
     });
   };
 
@@ -300,9 +418,11 @@ async function spawnSession(session: Session): Promise<void> {
     onData,
     onExit,
   });
+  startTitlePoll(session, setWindowTitle, isActive);
 }
 
 async function closePty(session: Session): Promise<void> {
+  stopTitlePoll(session);
   if (session.ptyId === null) {
     return;
   }
@@ -315,11 +435,15 @@ async function closePty(session: Session): Promise<void> {
   }
 }
 
-async function restartSession(session: Session): Promise<void> {
+async function restartSession(
+  session: Session,
+  setWindowTitle: (title: string) => void,
+  isActive: () => boolean,
+): Promise<void> {
   await closePty(session);
   session.term.reset();
   try {
-    await spawnSession(session);
+    await spawnSession(session, setWindowTitle, isActive);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     session.term.write(`\r\nFailed to start shell:\r\n${message}\r\n`);
@@ -423,10 +547,10 @@ async function main(): Promise<void> {
     const tabBtn = document.createElement("button");
     tabBtn.type = "button";
     tabBtn.className = "tab";
-    tabBtn.title = "Terminal";
+    tabBtn.title = "zsh";
     const titleEl = document.createElement("span");
     titleEl.className = "tab-title";
-    titleEl.textContent = "Terminal";
+    titleEl.textContent = "zsh";
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
     closeBtn.className = "tab-close";
@@ -439,7 +563,10 @@ async function main(): Promise<void> {
     const session: Session = {
       id,
       ptyId: null,
-      title: "Terminal",
+      title: "zsh",
+      oscTitle: null,
+      fgName: null,
+      titlePoll: null,
       host,
       tabBtn,
       titleEl,
@@ -467,13 +594,8 @@ async function main(): Promise<void> {
     });
 
     term.onTitleChange((title) => {
-      const next = title.trim() || "Terminal";
-      session.title = next;
-      titleEl.textContent = next;
-      tabBtn.title = next;
-      if (activeId === id) {
-        setWindowTitle(next);
-      }
+      session.oscTitle = title.trim() || null;
+      applyTabTitle(session, setWindowTitle, activeId === id);
     });
 
     term.attachCustomKeyEventHandler((ev) => {
@@ -535,7 +657,7 @@ async function main(): Promise<void> {
     activate(id);
     fit.fit();
     try {
-      await spawnSession(session);
+      await spawnSession(session, setWindowTitle, () => activeId === id);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       term.write(`\r\nFailed to start shell:\r\n${message}\r\n`);
