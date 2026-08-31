@@ -7,6 +7,7 @@ import { SearchAddon, type ISearchOptions } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
+import { setupWkHangulIme, type WkHangulIme } from "./wk-hangul-ime";
 
 const HOMEBREW = {
   background: "#000000",
@@ -71,6 +72,7 @@ type Session = {
   term: Terminal;
   fit: FitAddon;
   search: SearchAddon;
+  wkIme: WkHangulIme;
 };
 
 function isShellName(name: string): boolean {
@@ -745,7 +747,13 @@ async function main(): Promise<void> {
       term,
       fit,
       search,
+      wkIme: null!,
     };
+    session.wkIme = setupWkHangulIme(term, (data) => {
+      if (session.ptyId !== null) {
+        void invoke("pty_write", { id: session.ptyId, data });
+      }
+    });
     sessions.set(id, session);
     find.bind(session);
 
@@ -771,6 +779,10 @@ async function main(): Promise<void> {
     });
 
     term.attachCustomKeyEventHandler((ev) => {
+      const wkKey = session.wkIme.handleKeyEvent(ev);
+      if (wkKey === false) {
+        return false;
+      }
       const meta = ev.metaKey || ev.ctrlKey;
       const key = ev.key.toLowerCase();
       if (meta && !ev.altKey && (key === "f" || ev.code === "KeyF") && !ev.shiftKey) {
@@ -821,6 +833,9 @@ async function main(): Promise<void> {
     });
 
     term.onData((data) => {
+      if (session.wkIme.isComposing()) {
+        return;
+      }
       if (session.ptyId !== null) {
         void invoke("pty_write", { id: session.ptyId, data });
       }
@@ -844,6 +859,7 @@ async function main(): Promise<void> {
       return;
     }
     await closePty(session);
+    session.wkIme.dispose();
     session.term.dispose();
     session.host.remove();
     session.tabBtn.remove();
