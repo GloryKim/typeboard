@@ -30,6 +30,11 @@ The same repo keeps a **study track** under [`docs/`](./docs/): Rust language, T
 - Keep the UI native on macOS: overlay titlebar, Dock “New Window”, system menus
 - Stay **Bun-native** for the frontend toolchain (`bun install`, Vite, Tauri CLI)
 - Keep **written notes** in `docs/` for the Rust async / HTTP / Bun stack that sits beside the app
+- **Find in scrollback (`⌘F`)** — search spans the full xterm scrollback, not just visible lines, so match counts and positions stay accurate even for output that has scrolled off screen; handy for picking out IPs in `ifconfig` dumps, and still reports exact whole-word matches on the live viewport while programs like `htop` refresh in place
+
+<p align="center">
+  <img src="./assets/demo2.gif" alt="typeboard demo" width="800">
+</p>
 
 ---
 
