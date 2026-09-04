@@ -106,7 +106,19 @@ export function setupWkHangulIme(
   };
 
   const onInput = (ev: Event): void => {
-    if (!(ev instanceof InputEvent) || !ev.data) {
+    if (!(ev instanceof InputEvent)) {
+      return;
+    }
+
+    if (ev.inputType === "insertFromPaste" || ev.inputType === "insertFromYank") {
+      if (composing) {
+        flush();
+      }
+      clearTextarea();
+      return;
+    }
+
+    if (!ev.data) {
       return;
     }
 

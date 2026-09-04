@@ -11,6 +11,8 @@
     "core:window:allow-close",
     "core:window:allow-create",
     "core:webview:allow-create-webview-window",
-    "opener:default"
+    "opener:default",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text"
   ]
 }

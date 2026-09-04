@@ -1,6 +1,10 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import {
+  readText as readOsClipboard,
+  writeText as writeOsClipboard,
+} from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon, type ISearchOptions } from "@xterm/addon-search";
@@ -77,6 +81,86 @@ type Session = {
 
 function isShellName(name: string): boolean {
   return SHELL_NAMES.has(name.toLowerCase());
+}
+
+/** Find bar / other chrome — not the hidden xterm textarea. */
+function isChromeEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target.classList.contains("xterm-helper-textarea")) {
+    return false;
+  }
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target.isContentEditable
+  );
+}
+
+function isPasteChord(ev: KeyboardEvent): boolean {
+  if (ev.altKey) {
+    return false;
+  }
+  const key = ev.key.toLowerCase();
+  const pasteKey = key === "v" || ev.code === "KeyV";
+  if (!pasteKey) {
+    return false;
+  }
+  return ev.metaKey || (ev.ctrlKey && ev.shiftKey);
+}
+
+/**
+ * WKWebView's Clipboard API often only sees text this document wrote, not
+ * the system pasteboard from other apps. Read NSPasteboard via Tauri first.
+ */
+async function readSystemClipboard(eventText = ""): Promise<string> {
+  try {
+    const text = await readOsClipboard();
+    if (text) {
+      return text;
+    }
+  } catch {
+    // fall through
+  }
+  if (eventText) {
+    return eventText;
+  }
+  try {
+    return await navigator.clipboard.readText();
+  } catch {
+    return "";
+  }
+}
+
+async function writeSystemClipboard(text: string): Promise<void> {
+  try {
+    await writeOsClipboard(text);
+    return;
+  } catch {
+    // fall through
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // ignore
+  }
+}
+
+let lastPasteAt = 0;
+
+async function pasteFromSystem(session: Session, eventText = ""): Promise<void> {
+  const now = performance.now();
+  if (now - lastPasteAt < 100) {
+    return;
+  }
+  lastPasteAt = now;
+  const text = await readSystemClipboard(eventText);
+  if (!text) {
+    return;
+  }
+  session.wkIme.flush();
+  session.term.paste(text);
 }
 
 function shortenOsc(raw: string | null): string | null {
@@ -815,17 +899,14 @@ async function main(): Promise<void> {
       }
       if (meta && ev.key.toLowerCase() === "c" && term.hasSelection()) {
         if (ev.type === "keydown") {
-          void navigator.clipboard.writeText(term.getSelection());
+          void writeSystemClipboard(term.getSelection());
         }
         return false;
       }
-      if ((ev.metaKey || (ev.ctrlKey && ev.shiftKey)) && ev.key.toLowerCase() === "v") {
+      if (isPasteChord(ev)) {
         if (ev.type === "keydown") {
-          void navigator.clipboard.readText().then((text) => {
-            if (session.ptyId !== null && text) {
-              void invoke("pty_write", { id: session.ptyId, data: text });
-            }
-          });
+          ev.preventDefault();
+          void pasteFromSystem(session);
         }
         return false;
       }
@@ -980,6 +1061,32 @@ async function main(): Promise<void> {
       } else if (key === "0" || ev.code === "Digit0" || ev.code === "Numpad0") {
         ev.preventDefault();
         applyFontSize(FONT_DEFAULT);
+      } else if (isPasteChord(ev)) {
+        if (isChromeEditable(ev.target)) {
+          return;
+        }
+        ev.preventDefault();
+        const session = getActive();
+        if (session) {
+          void pasteFromSystem(session);
+        }
+      }
+    },
+    true,
+  );
+
+  window.addEventListener(
+    "paste",
+    (ev) => {
+      if (isChromeEditable(ev.target)) {
+        return;
+      }
+      const fromEvent = ev.clipboardData?.getData("text/plain") ?? "";
+      ev.preventDefault();
+      ev.stopPropagation();
+      const session = getActive();
+      if (session) {
+        void pasteFromSystem(session, fromEvent);
       }
     },
     true,
