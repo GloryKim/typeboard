@@ -914,7 +914,7 @@ async function main(): Promise<void> {
     });
 
     term.onData((data) => {
-      if (session.wkIme.isComposing()) {
+      if (session.wkIme.isComposing() || session.wkIme.ignorePtyData(data)) {
         return;
       }
       if (session.ptyId !== null) {

@@ -374,6 +374,13 @@ body {
   background-color: transparent;
 }
 
+/* Hangul preedit is echoed to the PTY so the line shifts like ASCII.
+   xterm's overlay paints on the cursor cell and covers the next glyph. */
+.term-host .composition-view,
+.term-host .composition-view.active {
+  display: none !important;
+}
+
 .term-host .xterm-screen {
   z-index: 1;
 }

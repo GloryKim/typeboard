@@ -6,6 +6,10 @@ function isHangul(text: string): boolean {
   if (cp === undefined) {
     return false;
   }
+  return isHangulCp(cp);
+}
+
+function isHangulCp(cp: number): boolean {
   return (
     (cp >= 0x1100 && cp <= 0x11ff) ||
     (cp >= 0x3130 && cp <= 0x318f) ||
@@ -13,6 +17,49 @@ function isHangul(text: string): boolean {
     (cp >= 0xa960 && cp <= 0xa97f) ||
     (cp >= 0xd7b0 && cp <= 0xd7ff)
   );
+}
+
+function isJamoCp(cp: number): boolean {
+  return (
+    (cp >= 0x1100 && cp <= 0x11ff) ||
+    (cp >= 0x3130 && cp <= 0x318f) ||
+    (cp >= 0xa960 && cp <= 0xa97f) ||
+    (cp >= 0xd7b0 && cp <= 0xd7ff)
+  );
+}
+
+function isSyllableCp(cp: number): boolean {
+  return cp >= 0xac00 && cp <= 0xd7af;
+}
+
+function stripJongseong(cp: number): number {
+  if (!isSyllableCp(cp)) {
+    return cp;
+  }
+  const s = cp - 0xac00;
+  return 0xac00 + s - (s % 28);
+}
+
+/** 자모→음절, or 받침 도깨비불 (간→가). Replace preedit; do not insert a second glyph. */
+function isSamePreedit(pending: string, next: string): boolean {
+  if (!pending || pending === next) {
+    return false;
+  }
+  const pendingCp = pending.codePointAt(0);
+  const nextCp = next.codePointAt(0);
+  if (pendingCp === undefined || nextCp === undefined) {
+    return false;
+  }
+  if ([...pending].length !== 1 || [...next].length !== 1) {
+    return false;
+  }
+  if (isJamoCp(pendingCp) && isHangulCp(nextCp)) {
+    return true;
+  }
+  if (isSyllableCp(pendingCp) && isSyllableCp(nextCp)) {
+    return stripJongseong(pendingCp) === nextCp || stripJongseong(pendingCp) === stripJongseong(nextCp);
+  }
+  return false;
 }
 
 function isWkWebView(): boolean {
@@ -23,16 +70,25 @@ function isWkWebView(): boolean {
   return /AppleWebKit/i.test(ua) && !/Chromium|Chrome|Edg|OPR/i.test(ua);
 }
 
+function isPreeditInputType(inputType: string): boolean {
+  return inputType === "insertReplacementText" || inputType === "insertCompositionText";
+}
+
 export type WkHangulIme = {
   isComposing: () => boolean;
+  /** True when xterm onData is a duplicate of Hangul we already wrote. */
+  ignorePtyData: (data: string) => boolean;
   flush: () => void;
   handleKeyEvent: (ev: KeyboardEvent) => boolean | undefined;
   dispose: () => void;
 };
 
 /**
- * WKWebView (Tauri macOS, Safari) fires insertReplacementText instead of
- * composition events for Korean IME. xterm.js 5.5 drops those updates.
+ * WKWebView Korean IME sends preedit (insertCompositionText) and then a
+ * committed insertText / compositionend for the same syllable. Writing both
+ * doubled every other glyph (가나다 → 가가나다다…). Preedit is the only
+ * writer; commit only freezes. Stale echoes with the same IME key sequence
+ * are ignored. A later keyCode 229 starts a new sequence so 가가 still works.
  */
 export function setupWkHangulIme(
   term: Terminal,
@@ -40,69 +96,88 @@ export function setupWkHangulIme(
 ): WkHangulIme {
   const textarea = term.textarea;
   const root = term.element;
-  const compositionView = root?.querySelector<HTMLElement>(".composition-view") ?? null;
   const wkEnv = isWkWebView();
 
   let composing = false;
   let pending = "";
-  let sawReplacement = false;
+  let echoed = "";
+  let holdOnData = false;
+  let lastConfirmed = "";
+  let imeKeySeq = 0;
+  let confirmedAtSeq = -1;
 
-  const syncCompositionView = (): void => {
-    if (!compositionView || !root || !pending) {
-      return;
-    }
-    const cursor = root.querySelector<HTMLElement>(".xterm-cursor");
-    if (!cursor) {
-      return;
-    }
-    const rootRect = root.getBoundingClientRect();
-    const cursorRect = cursor.getBoundingClientRect();
-    compositionView.textContent = pending;
-    compositionView.classList.add("active");
-    compositionView.style.left = `${cursorRect.left - rootRect.left}px`;
-    compositionView.style.top = `${cursorRect.top - rootRect.top}px`;
-    compositionView.style.height = `${cursorRect.height}px`;
-    compositionView.style.lineHeight = `${cursorRect.height}px`;
-    compositionView.style.fontFamily = term.options.fontFamily ?? "";
-    compositionView.style.fontSize = `${term.options.fontSize ?? 13}px`;
+  const isStaleEcho = (text: string): boolean =>
+    text === lastConfirmed && imeKeySeq === confirmedAtSeq;
+
+  const swallowHangul = (ev: Event): void => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
   };
 
-  const hideCompositionView = (): void => {
-    if (!compositionView) {
+  const syncPty = (next: string): void => {
+    if (next === echoed) {
       return;
     }
-    compositionView.textContent = "";
-    compositionView.classList.remove("active");
+    const deletes = [...echoed].length;
+    const payload = `${"\x7f".repeat(deletes)}${next}`;
+    echoed = next;
+    if (payload) {
+      onCommit(payload);
+    }
   };
 
-  const clearTextarea = (): void => {
+  const confirmPreedit = (): void => {
+    if (echoed) {
+      lastConfirmed = echoed;
+      confirmedAtSeq = imeKeySeq;
+    }
+    composing = false;
+    pending = "";
+    echoed = "";
+    holdOnData = true;
+    window.setTimeout(() => {
+      holdOnData = false;
+    }, 0);
     if (textarea) {
       textarea.value = "";
     }
+  };
+
+  const setPreedit = (text: string): void => {
+    if (isStaleEcho(text)) {
+      return;
+    }
+    composing = true;
+    pending = text;
+    syncPty(text);
   };
 
   const flush = (): void => {
     if (!composing) {
       return;
     }
-    const text = pending;
-    composing = false;
-    pending = "";
-    sawReplacement = false;
-    hideCompositionView();
-    clearTextarea();
-    if (text) {
-      onCommit(text);
-    }
+    confirmPreedit();
   };
 
-  const beginComposition = (text: string, showPreview: boolean): void => {
-    composing = true;
-    pending = text;
-    clearTextarea();
-    if (showPreview) {
-      syncCompositionView();
+  const applyCommittedHangul = (text: string): void => {
+    if (isStaleEcho(text) || echoed === text || pending === text) {
+      confirmPreedit();
+      return;
     }
+    if (composing && isSamePreedit(pending, text)) {
+      setPreedit(text);
+      confirmPreedit();
+      return;
+    }
+    if (composing) {
+      confirmPreedit();
+    }
+    if (isStaleEcho(text)) {
+      return;
+    }
+    setPreedit(text);
+    confirmPreedit();
   };
 
   const onInput = (ev: Event): void => {
@@ -114,19 +189,32 @@ export function setupWkHangulIme(
       if (composing) {
         flush();
       }
-      clearTextarea();
+      return;
+    }
+
+    if (ev.inputType === "deleteCompositionText" || ev.inputType === "deleteByComposition") {
+      swallowHangul(ev);
+      return;
+    }
+
+    if (ev.inputType === "deleteContentBackward" && composing) {
+      swallowHangul(ev);
+      setPreedit("");
+      return;
+    }
+
+    if (isPreeditInputType(ev.inputType)) {
+      const text = ev.data ?? "";
+      if (text && !isHangul(text)) {
+        flush();
+        return;
+      }
+      swallowHangul(ev);
+      setPreedit(text);
       return;
     }
 
     if (!ev.data) {
-      return;
-    }
-
-    if (ev.inputType === "insertReplacementText") {
-      ev.preventDefault();
-      ev.stopImmediatePropagation();
-      sawReplacement = true;
-      beginComposition(ev.data, true);
       return;
     }
 
@@ -137,52 +225,59 @@ export function setupWkHangulIme(
       return;
     }
 
-    const useWkPath = sawReplacement || (wkEnv && !ev.isComposing);
-    if (!useWkPath) {
+    if (!(wkEnv || composing || echoed || isStaleEcho(ev.data))) {
       return;
     }
 
-    ev.preventDefault();
-    ev.stopImmediatePropagation();
-
-    const hadPending = composing;
-    flush();
-    beginComposition(ev.data, !hadPending);
+    swallowHangul(ev);
+    if (ev.isComposing) {
+      setPreedit(ev.data);
+      return;
+    }
+    applyCommittedHangul(ev.data);
   };
 
   const onKeyDown = (ev: KeyboardEvent): void => {
-    if (!composing) {
+    if (ev.keyCode === 229) {
+      imeKeySeq += 1;
+      if (!composing) {
+        return;
+      }
+      ev.preventDefault();
+      ev.stopPropagation();
+      ev.stopImmediatePropagation();
       return;
     }
-    if (ev.keyCode === 229) {
-      ev.preventDefault();
-      ev.stopImmediatePropagation();
-      clearTextarea();
+    if (!composing) {
       return;
     }
     flush();
   };
 
-  const renderDisposable = term.onRender(() => {
-    if (composing && pending) {
-      syncCompositionView();
-    }
-  });
-
+  const inputTarget = root ?? textarea;
+  if (inputTarget) {
+    inputTarget.addEventListener("beforeinput", onInput, true);
+    inputTarget.addEventListener("input", onInput, true);
+  }
   if (textarea) {
-    textarea.addEventListener("input", onInput, true);
     textarea.addEventListener("keydown", onKeyDown, true);
   }
 
   return {
-    isComposing: () => composing,
+    isComposing: () => composing || holdOnData,
+    ignorePtyData: (data: string) => {
+      if (composing || holdOnData) {
+        return true;
+      }
+      return [...data].length === 1 && isHangul(data) && isStaleEcho(data);
+    },
     flush,
     handleKeyEvent: (ev: KeyboardEvent) => {
-      if (!composing) {
-        return undefined;
-      }
       if (ev.keyCode === 229) {
-        return false;
+        return composing ? false : undefined;
+      }
+      if (!composing && !holdOnData) {
+        return undefined;
       }
       if (ev.type === "keydown") {
         flush();
@@ -191,9 +286,11 @@ export function setupWkHangulIme(
     },
     dispose: () => {
       flush();
-      renderDisposable.dispose();
+      if (inputTarget) {
+        inputTarget.removeEventListener("beforeinput", onInput, true);
+        inputTarget.removeEventListener("input", onInput, true);
+      }
       if (textarea) {
-        textarea.removeEventListener("input", onInput, true);
         textarea.removeEventListener("keydown", onKeyDown, true);
       }
     },
