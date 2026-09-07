@@ -173,7 +173,7 @@ bun --hot path/to/server.ts
 | [`docs/axum`](./docs/axum/) | Axum routing, extractors, JSON, middleware — concept → code → checkpoint. |
 | [`docs/hyper`](./docs/hyper/) | Hyper 1.x under Axum / reqwest: the HTTP layer you rarely call directly. |
 | [`docs/reqwest`](./docs/reqwest/) | Outbound HTTP from an Axum process (sender / receiver examples). |
-| [`docs/msa`](./docs/msa/) | NestJS / Spring-scale MSA on Axum: workspace, sqlx, Redis, gateway, messaging, tracing, deploy. [`readme.md`](./docs/msa/readme.md). |
+| [`docs/msa`](./docs/msa/) | NestJS / Spring-scale MSA on Axum: workspace, sqlx, Redis, gateway, messaging, tracing, deploy. |
 
 ### Bun
 
