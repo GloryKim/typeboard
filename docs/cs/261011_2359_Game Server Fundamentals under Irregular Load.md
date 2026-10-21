@@ -32,6 +32,72 @@ C와 C++ 서버가 관계형 데이터베이스를 만질 때 자주 서는 자�
 
 불규칙한 부하는 이 선택 이전에 이미 소켓 옵션과 백로그를 건드린다. 점검이 끝나고, 이벤트가 시작하고, 패치 직후 로그인이 몰리면 `listen` 백로그를 넘는 SYN이 거절된다. 붙어 있는 연결은 서버가 `recv`를 제때 못 하면 수신 윈도우가 닫히고, 클라이언트 송신은 멈춘다. Nagle 알고리즘은 작은 패킷을 모아 보내 처리량을 올리지만, 조작 패킷의 지연을 키운다. 지연이 비싼 세션은 `TCP_NODELAY`로 그 뭉침을 끈다. 처리량이 비싼 대량 전송은 그대로 둔다. 옵션 하나의 이유까지 말할 수 있어야 소켓을 써 본 경험이다.
 
+이 규칙은 게임 서버만의 발명이 아니다. Redis는 클라이언트를 받아들이면 소켓을 논블로킹으로 두고 `anetEnableTcpNoDelay`로 Nagle을 끈 뒤, 읽을 수 있을 때 쿼리 바이트를 모은다. 공식 클라이언트 처리 문서는 그 순서를 그대로 적는다. 길이 헤더는 게임 패킷, HTTP의 `Content-Length`, WebSocket 프레임, Redis RESP가 같은 이유로 쓴다. TCP가 잘라 보낸 바이트를 메시지 하나로 다시 세우는 일이다.
+
+Bun은 이 바닥을 `Bun.listen`과 `Bun.udpSocket`으로 연다. 공식 TCP 문서는 용도에 데이터베이스 클라이언트와 게임 서버를 적는다. 핸들러 함수는 서버마다 하나이고 모든 소켓이 그 함수를 공유한다. 소켓마다 리스너를 달면 접속이 몰릴 때 가비지 컬렉터 압력이 커진다는 이유다. 세션 상태는 `socket.data`에 둔다. `data` 콜백에 넘어오는 값은 메시지 하나가 아니라 이번 커널 읽기에서 도착한 덩어리다. `socket.write`는 버퍼링하지 않고, 커널 송신 버퍼가 차면 요청보다 적게 쓴 바이트 수를 돌려준다. 나머지는 `drain`에서 다시 쓴다. 작은 `write`를 여러 번 호출하는 대신 `ArrayBufferSink`로 모아 한 번에 보낸다.
+
+아래는 빅엔디언 4바이트 길이 헤더로 프레임을 조립하는 서버다. 콜백은 프레임을 자르는 데서 멈춘다.
+
+```ts
+type Session = {
+  buf: Uint8Array;
+  len: number;
+};
+
+const HEADER = 4;
+const MAX_FRAME = 1024 * 1024;
+
+function append(session: Session, chunk: Uint8Array) {
+  if (session.len + chunk.byteLength > session.buf.byteLength) {
+    const next = new Uint8Array(Math.max(session.buf.byteLength * 2, session.len + chunk.byteLength));
+    next.set(session.buf.subarray(0, session.len));
+    session.buf = next;
+  }
+  session.buf.set(chunk, session.len);
+  session.len += chunk.byteLength;
+}
+
+Bun.listen<Session>({
+  hostname: "0.0.0.0",
+  port: 7777,
+  socket: {
+    open(socket) {
+      socket.data = { buf: new Uint8Array(64 * 1024), len: 0 };
+    },
+    data(socket, chunk) {
+      const session = socket.data;
+      append(session, chunk);
+      let offset = 0;
+      while (session.len - offset >= HEADER) {
+        const view = new DataView(session.buf.buffer, session.buf.byteOffset + offset, HEADER);
+        const size = view.getUint32(0, false);
+        if (size > MAX_FRAME) {
+          socket.end();
+          return;
+        }
+        if (session.len - offset < HEADER + size) break;
+        const payload = session.buf.subarray(offset + HEADER, offset + HEADER + size);
+        acceptFrame(socket, payload);
+        offset += HEADER + size;
+      }
+      if (offset > 0) {
+        session.buf.copyWithin(0, offset, session.len);
+        session.len -= offset;
+      }
+    },
+    drain(_socket) {
+      // write가 일부만 받아들였다면 남은 송신 버퍼를 여기서 다시 쓴다.
+    },
+  },
+});
+```
+
+`acceptFrame` 안에 `SQLExecute`에 해당하는 대기나 월드 전체를 잠그는 계산을 넣으면, 이 프로세스의 다른 소켓 `data`도 같이 밀린다. Bun의 JavaScript는 이벤트 루프 스레드가 하나다. 길이 헤더를 자른 뒤의 인증과 저장은 비동기 작업으로 빼고, 결과는 그 세션이 아직 `open`일 때만 적용한다.
+
+UDP는 덩어리가 곧 데이터그램인 쪽에 둔다. `Bun.udpSocket`의 `data(socket, buf, port, addr)`는 호출 한 번이 패킷 하나다. 주소는 DNS를 타지 않는 IP여야 한다. 위치 갱신처럼 많이 쏘는 경로에서 패킷마다 시스템 콜을 내지 않으려면 `sendMany`로 여러 데이터그램을 한 번에 넘긴다. `send`가 `false`를 돌려주거나 `sendMany`가 요청보다 적게 보냈으면 송신 버퍼가 찬 것이고, 이어서 `drain`이 온다. 빠진 패킷을 복구하는 층은 이 API 밖에 직접 둔다.
+
+이 콜백이 커널의 무엇을 감추는지는 운영체제마다 다르다. Bun의 소켓 이벤트는 uSockets다. Linux에서는 `epoll_wait` 계열이고, macOS에서는 `kqueue`다. Windows 백엔드는 libuv이고, libuv는 I/O 완료 포트 위에 콜백을 얹는다. JavaScript는 `WSARecv`도 `epoll_ctl`도 호출하지 않는다. 호출하는 쪽이 보는 것은 "바이트가 도착했다"이다. 버퍼를 언제 커널에 맡기는지, 완료와 준비가 어떻게 다른지는 7절에서 9절의 API를 직접 쓸 때 다시 드러난다.
+
 ## 3. 멀티스레드와 불규칙한 부하
 
 게임 서비스의 트래픽은 평균으로 설계하면 틀린다. 웹 요청도 출퇴근에 몰리지만, 게임은 그 몰림이 더 날카롭다. 월드 이벤트가 열리는 초, 서버 오픈, 접속 보상, 핫타임. 평시에는 코어가 한가하고, 그 몇 분 동안 로그인과 패킷과 쿼리가 같이 뛴다. 큐잉 지연은 사용률이 1에 가까워질수록 가파르게 늘어나므로, 평균 CPU가 30%라는 그래프는 피크의 대기열을 숨긴다. 피크를 평균 장비로 견디게 하려면 일을 나누고, 막을 수 없는 입구는 버리고, 게임 틱과 무관한 대기는 다른 스레드로 보낸다.
@@ -50,6 +116,10 @@ C와 C++ 서버가 관계형 데이터베이스를 만질 때 자주 서는 자�
 
 같은 세션의 패킷 순서는 보통 로직 스레드 하나로 모아서 지킨다. I/O 스레드가 세션 객체를 직접 고치면 순서가 깨진다. 큐는 그 경계의 완충이다. 완충이 뮤텍스이면 피크에서 다시 한 줄이 된다. 그다음 질문이 락프리 큐다.
 
+이 분리는 이름이 있는 패턴이다. Schmidt 등의 POSA 2가 적은 Half-Sync/Half-Async는 비동기 I/O 층이 큐에 넣고, 동기적으로 읽는 워커가 그 큐를 비우는 구조다. 같은 책의 Leader/Followers는 완료 포트에서 한 스레드가 패킷을 집어 가고 나머지가 기다리는 풀이다. IOCP 워커 풀은 그 모양이다. nginx는 스레드 대신 프로세스를 가른다. 워커마다 epoll 인스턴스가 있고, 리슨 소켓을 여러 워커가 같이 보면 접속 한 번에 여러 워커가 깨어나는 thundering herd가 생긴다. Linux 3.9의 `SO_REUSEPORT`와 이후의 `EPOLLEXCLUSIVE`는 그 깨움을 워커 하나로 줄이는 쪽이다. 게임 서버가 로직 스레드를 하나로 두는 이유는 nginx와 다르다. 월드 상태의 순서를 그 스레드 하나로 고정하기 위해서다.
+
+Go와 Node, Bun은 이 대기를 런타임이 대신 한다. Go의 `conn.Read`는 호출한 고루틴만 재우고, 런타임 네트워크 폴러가 준비된 고루틴을 런 큐로 돌려놓는다. Node의 libuv와 Bun의 이벤트 루프는 콜백을 깨운다. `Worker`로 스레드를 늘리면 `postMessage`가 메시지를 복사해 넘긴다. 그 통로는 6절의 SPSC 링이 아니다. 공유 메모리의 `head`와 `tail`을 메모리 순서로 공개하는 구조가 없고, 따라서 락프리 큐를 만들었다는 증거도 되지 않는다.
+
 ## 4. 디자인 패턴과 클린 코드
 
 패턴은 장식이 아니다. 부하와 스레드 경계를 코드에서 보이게 하는 이름이다. 논할 수 있다는 말은 이름을 열거하는 일이 아니라, 왜 그 경계를 그 패턴으로 닫았는지와 그 비용이 무엇인지를 말하는 일이다.
@@ -59,6 +129,8 @@ C와 C++ 서버가 관계형 데이터베이스를 만질 때 자주 서는 자�
 SOLID를 이 서버에 대면 질문이 구체적이 된다. 세션 클래스가 소켓 버퍼와 SQL 문자열과 인벤토리 규칙을 같이 가지면 변경 이유가 셋이다. 네트워크 형식이 바뀔 때마다 게임 규칙이 다시 컴파일된다. 단일 책임은 그 셋을 가르라는 요구다. 의존 역전은 로직 스레드가 ODBC 핸들을 직접 잡지 않게 한다. 로직은 "이 쿼리를 나중에 실행하라"는 작업만 큐에 넣는다. DB 스레드가 ODBC를 안다. 이렇게 나누지 않으면 클린 코드는 이름 정렬이고, 피크 때의 구조는 그대로다.
 
 남의 코드를 읽는 일은 같은 요구의 반대 방향이다. 레거시 서버는 이미 이 경계가 무너진 채로 돌아간다. 읽는 사람은 락을 쥔 채 호출되는 함수, 세션을 삭제하는 스레드, 패킷을 조립하다 만 버퍼를 찾아야 한다. 읽기 쉬운 코드를 쓴다는 것은 다음 사람이 그 검색을 짧게 끝내게 둔다는 것이다. 패턴을 논하는 자리는 리뷰다. "여기 Strategy를 썼다"가 아니라 "이 핸들러는 I/O 스레드에서 호출되면 안 된다"가 리뷰 문장이다.
+
+대중적인 코드에서 이 이름은 이렇게 붙어 있다. Netty의 `ChannelPipeline`은 이벤트 루프 위에서 핸들러를 잇는다. 루프 스레드가 막히면 그 루프에 묶인 연결이 같이 멈춘다. 패킷 아이디로 함수를 찾는 표는 Command다. 로그인, 월드, 종료를 세션 객체 안의 상태로 두면 State다. 버퍼를 피크마다 `new`하지 않으려고 Netty는 `PooledByteBufAllocator`와 `Recycler`로 스레드 로컬 풀을 둔다. 다른 이벤트 루프가 아직 읽는 버퍼를 공유 프리리스트에 반환하면, 풀은 할당을 줄이는 도구가 아니라 사용 후 해제 버그가 된다. 게임 서버의 객체 풀도 같은 수명 규칙을 가진다.
 
 ## 5. RDBMS와 ODBC
 
@@ -82,7 +154,21 @@ SQLEndTran으로 커밋하거나 롤백한다
 
 게임 루프와의 결합이 핵심이다. `SQLExecute`가 디스크나 락을 기다리면 호출한 스레드가 잔다. 그 스레드가 IOCP 워커이거나 월드 틱이면, 소켓 완료가 밀리고 월드가 멈춘다. 그래서 쿼리는 작업 객체로 만들어 DB 스레드 풀에 넘긴다. 넘기는 통로가 3절의 큐다. 결과는 다시 로직 스레드의 큐로 돌아와, 세션이 아직 살아 있을 때만 적용한다. 쿼리를 기다리는 동안 세션이 끊기면 결과를 버려야 한다. 이 경쟁을 락프리 큐만으로 해결했다고 말하면 안 된다. 큐는 전달을 맡고, 세션의 수명 검사는 로직 스레드가 맡는다.
 
-커넥션 풀은 피크 때 로그인이 동시에 `SQLDriverConnect`를 하지 않게 한다. 풀 크기보다 많은 쿼리가 오면 큐에서 기다린다. 풀을 무한히 키우면 DB의 최대 연결에서 거절된다. 경험으로 말할 내용는 풀의 상한, 문장 준비의 재사용, 트랜잭션 안에서 게임 로직을 호출하지 않는 규칙, 느린 쿼리 하나가 풀 전체를 점유하는 모습이다.
+커넥션 풀은 피크 때 로그인이 동시에 `SQLDriverConnect`를 하지 않게 한다. 풀 크기보다 많은 쿼리가 오면 큐에서 기다린다. 풀을 무한히 키우면 DB의 최대 연결에서 거절된다. 경험으로 말할 내용은 풀의 상한, 문장 준비의 재사용, 트랜잭션 안에서 게임 로직을 호출하지 않는 규칙, 느린 쿼리 하나가 풀 전체를 점유하는 모습이다.
+
+현장에서 밟는 경로는 드라이버 관리자와 벤더 드라이버다. Windows에서는 관리자가 같이 있고, Linux에서는 unixODBC가 그 자리다. SQL Server에 대한 Microsoft의 네이티브 드라이버는 Microsoft ODBC Driver for SQL Server다. MySQL은 Connector/ODBC, PostgreSQL은 psqlODBC가 같은 핸들 셋에 붙는다. C++에서는 nanodbc나 SOCI의 ODBC 백엔드가 핸들 할당과 진단 레코드 루프를 감싼다. 감싼 뒤에도 `SQLExecute`가 호출 스레드를 재운다는 사실은 남는다. 자바의 대응물은 JDBC와 HikariCP다. .NET의 `Microsoft.Data.SqlClient`는 풀을 런타임이 갖고, ODBC를 거치지 않는다. `System.Data.Odbc`를 고를 때만 같은 C API로 내려간다.
+
+Bun 안에 ODBC 함수는 없다. 내장 SQL은 `"bun"`의 `sql`이다. PostgreSQL, MySQL, MariaDB, SQLite에 프로미스와 커넥션 풀로 붙고, 질의는 태그드 템플릿이다. 드라이버 관리자의 핸들 셋이 아니다.
+
+```ts
+import { sql } from "bun";
+
+const rows = await sql`
+  SELECT id FROM accounts WHERE name = ${name}
+`;
+```
+
+2절의 `data` 콜백은 이 쿼리를 시작만 하고 반환한다. 콜백을 `async`로 두고 `await`하면 그 소켓의 다음 프레임과 쿼리 결과가 겹친다. 계정 행을 세션에 반영하는 순서는 세션을 소유한 쪽 한 줄에서 지킨다. C++ 서버가 `SQLExecute`로 얻는 블로킹과 진단 레코드는 이 클라이언트가 대신 숨긴다.
 
 ## 6. 락프리 큐를 만든다는 말
 
@@ -116,6 +202,12 @@ bool pop(T& out) {
 
 락프리는 락이 없다는 뜻이 아니다. 진행 보장의 이름이다. 어떤 스레드가 스케줄에서 빠져도 다른 스레드의 연산이 유한 번에 끝난다는 쪽에 가깝다. 대기가 전혀 없다는 대기 부재(wait-free)와는 다르다. 이 차이를 말하면서 링의 `release`와 `acquire`를 가리킬 수 있으면, 큐를 만들었다는 문장이 성립한다.
 
+위의 링과 같은 가족으로 공개된 헤더는 여럿이다. Erik Rigtorp의 `SPSCQueue`, `boost::lockfree::spsc_queue`, Folly의 `ProducerConsumerQueue`가 생산자 하나와 소비자 하나의 고정 용량 링이다. 캐시 라인을 띄워 `head`와 `tail`이 같은 줄을 두드리지 않게 하는 점이 실사용 헤더의 차이다. 생산자가 여럿이면 Dmitry Vyukov의 제한 MPMC, Cameron Desrochers의 `moodycamel::ConcurrentQueue`로 간다. Netty는 이벤트 루프의 작업 큐로 JCTools의 MPSC 큐를 쓴다. 여러 스레드가 작업을 넣고, 그 루프 스레드 하나만 뺀다. 게임 서버에서 I/O 스레드가 넣고 로직 스레드가 빼는 자리와 같다.
+
+링크드 리스트로 된 락프리는 자바 `ConcurrentLinkedQueue`가 교과서다. Michael과 Scott의 알고리즘이고, 노드를 힙에 새로 뽑는다. ABA는 그 노드 주소를 풀에서 다시 쓸 때 나온다. 자바 가비지 컬렉터는 살아있는 참조가 있는 주소를 바로 재사용하지 않아 이 구멍을 피한다. C++ 오브젝트 풀은 피하지 못한다. 그래서 해저드 포인터(Maged Michael)나 에폭 기반 회수(Folly의 hazptr, Rust crossbeam의 epoch)가 큐와 세트로 온다. LMAX Disruptor와 Agrona의 링 버퍼, 그리고 그 위를 타는 Aeron은 순번을 생산자가 독점하게 두어 CAS 다툼 자체를 줄인다. 금융 시세에 많이 쓰이는 형태이고, 게임 패킷의 SPSC 링과 목표는 같고 생산자 규율은 더 세다.
+
+Bun 내장 API에는 이 링이 없다. `postMessage`와 프로미스 큐는 런타임이 복사를 하거나 태스크를 줄 세운다. 메모리 순서를 직접 고르는 코드는 C++나 Rust의 `Atomic`으로 남긴다.
+
 ## 7. Windows의 기본: IOCP
 
 Windows에서 다수 소켓의 기본 모델은 I/O 완료 포트다. 프로액터다. 애플리케이션이 수신이나 송신을 먼저 걸어 두고, 커널이 그 연산이 끝났다고 완료 패킷을 포트에 넣는다. 워커는 `GetQueuedCompletionStatus`로 그 패킷을 받는다. 패킷에는 몇 바이트가 끝났는지, 어느 `OVERLAPPED`인지가 들어 있다. "지금 읽어도 된다"가 아니라 "걸어 둔 읽기가 끝났다"이다.
@@ -138,6 +230,8 @@ WSARecv에 OVERLAPPED와 버퍼를 채워 수신을 걸어 둔다
 
 완료 키와 `OVERLAPPED`의 수명을 착각하면 풀에서 이미 반환한 세션을 워커가 만진다. 소켓을 닫아도 이미 걸린 수신의 완료는 나중에 도착한다. 그 완료를 받을 때까지 세션과 버퍼를 살리거나, 닫힘을 표시해 늦게 온 완료를 무시해야 한다. IOCP를 기본으로 안다는 것은 `GetQueuedCompletionStatus`의 인자 순서가 아니라 이 수명이다.
 
+Windows에서 이 포트를 기본으로 쓰는 런타임은 넓다. IIS와 SQL Server의 네이티브 I/O, .NET 스레드 풀의 I/O 완료, Kestrel의 소켓 트랜스포트, `SocketAsyncEventArgs`가 그 계열이다. Boost.Asio는 Windows에서 IOCP 위의 프로액터다. 같은 `async_read`를 Linux에서 빌드하면 epoll로 준비된 소켓에 논블로킹 읽기를 한다. 소스의 모양은 같고, 버퍼를 연산 시작 전에 살려 두어야 하는 의무는 Windows 빌드에 더 두껍다. Go 런타임은 `netpoll_windows.go`에서 IOCP로 완료를 받고, 잠들어 있던 고루틴을 깨운다. 사용자 코드의 `Read`는 블로킹 함수처럼 보인다. libuv는 완료를 받은 뒤 바이트가 담긴 콜백을 호출해, Node와 Bun의 Windows 소켓이 리액터처럼 보이게 만든다. 콜백 시점에 버퍼 소유가 이미 사용자 쪽으로 넘어왔다는 점이 `GetQueuedCompletionStatus`를 직접 돌릴 때와 다르다.
+
 ## 8. Registered I/O
 
 RIO는 Windows 8과 Windows Server 2012부터 들어온 Winsock 확장이다. IOCP와 같이 프로액터지만, 버퍼와 요청 큐를 미리 커널에 등록해 연산마다 치르는 전환과 복사를 줄이려 한다. 작은 패킷이 매우 많은 게임 서버를 염두에 둔 경로다. IOCP를 대체하는 다른 운영체제가 아니다. 같은 Windows 안에서 더 낮은 오버헤드로 가는 선택이다.
@@ -156,6 +250,8 @@ RIODequeueCompletion으로 끝난 연산을 직접 꺼낸다
 등록된 버퍼는 완료가 오기 전에 해제하거나 다른 용도로 덮으면 안 된다. 슬롯이 떨어지면 수신을 더 걸 수 없다. IOCP에서 재게시를 잊는 버그와 같은 가족이다. RIO는 그 슬롯을 애플리케이션이 링처럼 직접 센다. 만들 일이 락프리 큐와 닮아 있다. 생산자는 커널이고 소비자는 게임 루프이며, 칸을 비우기 전에 다음 수신을 걸어야 한다.
 
 IOCP를 기본으로 두고 RIO를 같이 보라는 말은 순서가 있다. 완료의 수명, 워커가 잠들면 안 되는 이유, 다시 걸어야 스트림이 산다는 이유를 IOCP에서 배운 뒤에야 RIO의 등록 버퍼가 같은 문제의 더 싼 형태인지 보인다. RIO만 따로 외우면 폴링 루프와 알림 루프를 고르는 이유가 사라진다.
+
+RIO를 기본 엔진으로 채택한 대중 서버는 드물다. 2017년 Kestrel 논의(aspnet/AspNetCore#1903)는 RIO를 선택 트랜스포트로 둘 수 있다고 적고, 기본값으로 올리지는 않았다. 연결마다 등록 버퍼를 물리 메모리에 고정해 두어야 해서, 한가한 연결이 많을수록 메모리가 먼저 커진다는 이유였다. 공개된 유지보수 구현은 Microsoft의 ctsTraffic이다. `ctsRioIocp.cpp`는 TCP로 RIO를 쓰고, 두 가지를 일반 Winsock과 다르게 처리한다. 송신은 Ideal Send Backlog를 보고 날릴 양을 정한다. `closesocket` 전에 걸려 있던 `RIOSend` 완료를 모두 받는다. 일반 `WSASend`는 버퍼를 Winsock에 넘긴 시점에 완료될 수 있어, 그 직후 소켓을 닫는 코드가 많다. RIO에서 그 순서를 그대로 가져오면 아직 끝나지 않은 송신을 자른다. 게임 서버가 RIO로 옮길 때 먼저 깨지는 곳이 이 종료 순서와, 유휴 세션이 붙잡고 있는 등록 버퍼다.
 
 ## 9. Linux의 epoll, 그리고 셋의 차이
 
@@ -187,7 +283,13 @@ EPOLLOUT이면 송신 버퍼에 쌓인 것을 send한다
 
 Windows 진영의 기본이 IOCP이고, 그 위의 저비용 경로가 RIO다. Linux 진영에서 같은 질문에 먼저 나오는 답이 epoll이다. "차이"는 성능 우열이 아니다. 커널이 완료를 통지하는지, 준비를 통지하는지다. 완료 통지에서는 버퍼가 연산이 끝나기 전에 살아 있어야 하고 바이트 수가 패킷에 있다. 준비 통지에서는 깨어난 뒤에 읽으며, 읽기 전에 버퍼를 커널에 맡겨 두지 않는다. 서버를 Windows에 둘지 Linux에 둘지에 따라 스레드가 기다리는 API가 바뀌고, 세션과 버퍼의 수명 규칙이 같이 바뀐다. 로직 스레드로 패킷을 넘기는 큐와, 그 큐 밖에서 DB를 처리하는 규칙은 어느 쪽에서나 같다.
 
-Linux 5.1 이후의 io_uring은 제출 큐와 완료 큐, 등록 버퍼를 가져 RIO에 더 가깝다. epoll을 Linux의 유일한 I/O 모델로 외우면 이 경로가 빠진다. 다만 기존 게임 서버와 커널 호환에서 아직 설명의 기준점은 epoll이다. 셋을 비교한 뒤 io_uring을 "Linux의 완료 큐"로 한 문장 더 말할 수 있으면 충분하다.
+같은 epoll도 트리거가 갈린다. nginx의 `ngx_epoll_add_connection`은 `EPOLLIN|EPOLLOUT|EPOLLET|EPOLLRDHUP`로 연결을 넣는다. 엣지 트리거라 핸들러는 `EAGAIN`이 나올 때까지 비운다. Redis 8.4의 `ae_epoll.c`는 `EPOLLIN`과 `EPOLLOUT`만 올리고 `EPOLLET`을 쓰지 않는다. 레벨 트리거라, 버퍼에 데이터가 남아 있으면 다음 `epoll_wait`가 그 fd를 다시 준다. Go 런타임 `netpoll_epoll.go`는 nginx 쪽으로, `EPOLLET`을 켠다. 고루틴의 읽기 루프가 `EAGAIN`에서만 잠든다. 셋 다 epoll인데, 한 번만 읽고 반환해도 되는 쪽은 Redis의 레벨 트리거뿐이다.
+
+macOS와 BSD에서 이 자리의 대응물은 `kqueue`다. Bun의 uSockets가 Darwin에서 쓰는 대기이기도 하다. `EV_CLEAR`가 엣지 트리거에 해당한다. 게임 서버를 Linux에 둔다면 기준 설명은 epoll이고, 개발기만 macOS라면 같은 리액터가 kqueue로 깨어난다.
+
+Linux 5.1 이후의 io_uring은 제출 큐와 완료 큐, 등록 버퍼를 가져 RIO에 더 가깝다. Jens Axboe의 인터페이스이고, 연산 여러 개를 큐에 넣은 뒤 완료를 모은다. Go의 네트워크 폴러는 아직 이 경로를 쓰지 않고 epoll에 머문다. nginx의 기본 이벤트 모듈도 epoll이다. epoll을 Linux의 유일한 I/O 모델로 외우면 io_uring이 빠지고, io_uring만 외우면 이미 돌아가고 있는 게임 서버의 대기 호출을 설명하지 못한다. 기준점은 epoll이고, io_uring은 "Linux의 완료 큐"로 한 단락을 더할 수 있으면 된다.
+
+Bun의 `Bun.listen`은 이 비교를 호출부로 노출하지 않는다. Linux에서는 위의 epoll, Windows에서는 libuv가 감싼 IOCP, macOS에서는 kqueue가 `data` 콜백 하나로 모인다. 프레임 조립과 백프레셔는 그 위에서 직접 짠다. 완료 통지와 준비 통지의 버퍼 수명을 보려면 IOCP, RIO, epoll을 각각 호출하는 코드가 필요하다.
 
 ## 10. 이 층이 한 서버에서 만나는 순서
 
@@ -229,7 +331,7 @@ listen 백로그와 accept 루프가 먼저 받는다
 | 가득 참 | 패킷 종류별로 버릴 것과 끊을 것이 나뉘는가 |
 | IOCP | 수신을 다시 거는가. 완료 핸들러가 동기 SQL을 호출하지 않는가. 닫힌 소켓의 늦은 완료를 무시하는가 |
 | RIO | 등록 버퍼의 수명과 슬롯 고갈을 아는가. 폴링과 알림 중 무엇을 고르는지 말할 수 있는가 |
-| epoll | 준비가 완료와 다르다는 것을 말할 수 있는가. 엣지 트리거면 `EAGAIN`까지 비우는가 |
+| epoll | 준비가 완료와 다르다는 것을 말할 수 있는가. nginx의 `EPOLLET`과 Redis의 레벨 트리거를 구분하는가 |
 | 차이 | 완료 통지와 준비 통지에서 버퍼를 누가 언제까지 소유하는지 말할 수 있는가 |
 | ODBC | 핸들 셋과 진단 레코드와 풀의 상한을 알고, 쿼리가 어느 스레드에서 도는가 |
 | 패턴 | 세션 상태, 패킷 분기, DB 작업이 서로 다른 변경 이유로 나뉘는가 |
@@ -239,4 +341,4 @@ listen 백로그와 accept 루프가 먼저 받는다
 
 게임 서버의 기초는 네트워크, 스레드, 데이터베이스, 운영체제 I/O를 따로 외우는 과목이 아니다. 접속이 불규칙하게 몰릴 때 소켓이 스트림으로 들어오고, 그 스트림을 끝내는 통지가 Windows에서는 IOCP와 RIO, Linux에서는 epoll이며, 그 통지를 받은 스레드는 락프리 큐까지만 닿고, SQL은 ODBC를 아는 DB 스레드가 나중에 처리하며, 그 경계가 패턴으로 읽혀야 한다. 완료와 준비를 구분하지 못하면 버퍼를 언제 해제해도 되는지가 바뀌는데도 같은 코드 모양을 유지하게 된다. 큐의 메모리 순서를 만들지 않으면 평시에만 맞는 서버가 된다. 클린 코드는 그 서버를 다음 사람이 피크의 경로를 따라 읽을 수 있게 경계를 남기는 일이다.
 
-> 출처: [I/O Completion Ports](https://learn.microsoft.com/en-us/windows/win32/fileio/i-o-completion-ports), [Winsock Registered I/O](https://learn.microsoft.com/en-us/windows/win32/winsock/registered-i-o), [epoll(7)](https://man7.org/linux/man-pages/man7/epoll.7.html), [ODBC Programmer's Reference](https://learn.microsoft.com/en-us/sql/odbc/reference/odbc-programmer-s-reference)
+> 출처: [I/O Completion Ports](https://learn.microsoft.com/en-us/windows/win32/fileio/i-o-completion-ports), [Winsock Registered I/O](https://learn.microsoft.com/en-us/windows/win32/winsock/registered-i-o), [epoll(7)](https://man7.org/linux/man-pages/man7/epoll.7.html), [ODBC Programmer's Reference](https://learn.microsoft.com/en-us/sql/odbc/reference/odbc-programmer-s-reference), [Bun TCP](https://bun.com/docs/runtime/networking/tcp), [Bun UDP](https://bun.com/docs/runtime/networking/udp), [Bun SQL](https://bun.com/docs/runtime/sql), [Redis `ae_epoll.c`](https://github.com/redis/redis/blob/8.4.1/src/ae_epoll.c), [Redis client handling](https://redis.io/docs/latest/develop/reference/clients/), [nginx `ngx_epoll_module.c`](https://github.com/nginx/nginx/blob/master/src/event/modules/ngx_epoll_module.c), [Microsoft ctsTraffic RIO](https://github.com/microsoft/ctsTraffic/blob/master/ctsTraffic/ctsRioIocp.cpp), [Kestrel의 RIO 논의](https://github.com/aspnet/AspNetCore/issues/1903)
