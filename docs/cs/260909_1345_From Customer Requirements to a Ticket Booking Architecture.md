@@ -702,3 +702,4 @@ if (!adr0002.includes("외부 분산 락")) {
 - Azure Architecture Center. Circuit Breaker. https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker
 - Azure Architecture Center. Bulkhead. https://learn.microsoft.com/en-us/azure/architecture/patterns/bulkhead
 - Bun 파일 입출력. `Bun.file`, `Bun.write`. https://bun.com/docs/runtime/file-io
+- 티켓 예매 시스템 | 고객 요구에서 설계로 가는 접근법. https://www.youtube.com/watch?v=7excI-0n2xk
