@@ -172,7 +172,7 @@ bun --hot path/to/server.ts
 | [`docs/tokio`](./docs/tokio/) | Tokio runtime: tasks, `poll` / Waker, thread pool, timers / TCP. [`readme.md`](./docs/tokio/readme.md) then `01.md`–`06.md`. |
 | [`docs/axum`](./docs/axum/) | Axum routing, extractors, JSON, middleware — plus the `msa_*` series (workspace, sqlx, Redis, gateway, messaging, tracing, deploy). |
 | [`docs/hyper`](./docs/hyper/) | Hyper 1.x under Axum / reqwest: the HTTP layer you rarely call directly. |
-| [`docs/reqwest`](./docs/reqwest/) | Outbound HTTP from an Axum process (sender / receiver examples). |
+| [`docs/reqwest`](./docs/reqwest/) | Outbound HTTP from an Axum process — start at [`260729_2321_Reqwest_HTTP_Client_Sender_Receiver_Cookbook_and_Roadmap.md`](./docs/reqwest/260729_2321_Reqwest_HTTP_Client_Sender_Receiver_Cookbook_and_Roadmap.md). |
 
 ### Bun
 
