@@ -1,6 +1,6 @@
 # 12. 보안 — 신뢰 경계 · 키 회전 · 토큰 폐기 · 감사
 
-[06_gateway_auth](./06_gateway_auth.md)는 **인증이 동작하게** 만듭니다.
+[06_gateway_auth](./260907_1340_msa_gateway_auth.md)는 **인증이 동작하게** 만듭니다.
 이 문서는 그 인증이 **깨지지 않게** 만듭니다.
 
 MSA는 모놀리스보다 공격면이 큽니다. 서비스 간 네트워크가 통째로 새로운 신뢰 경계이기 때문입니다.
@@ -486,7 +486,7 @@ match revocation.is_revoked(&claims).await {
 **추천: 일반 API는 fail-open, 민감 작업(결제·관리자)은 fail-closed.**
 access token TTL을 5~15분으로 짧게 유지하면 fail-open의 노출 창이 그만큼 좁습니다.
 
-이걸 문서에 명시하세요. [01 §7](./01_architecture.md)의 실패 모드 표에 한 줄로 추가하면 됩니다.
+이걸 문서에 명시하세요. [01 §7](./260902_1312_msa_architecture.md)의 실패 모드 표에 한 줄로 추가하면 됩니다.
 
 ### 4-4. 체크 비용
 
@@ -716,7 +716,7 @@ fn argon2_config() -> Argon2<'static> {
 ```
 
 **메모리 파라미터의 함정:** 19MiB × 동시 해싱 64개 = **1.2GB**입니다.
-[10_errata §6](./10_errata.md)의 세마포어와 반드시 같이 쓰세요.
+[10_errata §6](./260911_1420_msa_errata.md)의 세마포어와 반드시 같이 쓰세요.
 
 ```
 컨테이너 메모리 512Mi + m=19MiB → 동시 해싱 최대 ~20개
@@ -775,7 +775,7 @@ fn security_headers() -> impl Layer<...> + Clone {
 
 ### CORS를 다시 봅니다
 
-[06 §8](./06_gateway_auth.md)은 `CorsLayer::permissive()`를 "로컬만"이라고 하는데, 왜 위험한지가 없습니다.
+[06 §8](./260907_1340_msa_gateway_auth.md)은 `CorsLayer::permissive()`를 "로컬만"이라고 하는데, 왜 위험한지가 없습니다.
 
 ```rust
 // ❌ 절대 금지 조합 — 브라우저가 거부하지만, 직접 구현하면 뚫림
@@ -872,7 +872,7 @@ tx.commit().await?;   // 둘 다 되거나 둘 다 안 되거나
 ```
 
 같은 트랜잭션이어야 **"작업은 됐는데 기록은 없는"** 상태가 안 생깁니다.
-[07 §4](./07_messaging.md)의 outbox와 정확히 같은 논리입니다.
+[07 §4](./260908_1350_msa_messaging.md)의 outbox와 정확히 같은 논리입니다.
 
 ---
 
@@ -952,7 +952,7 @@ MSA에서 **"이 사용자의 데이터를 전부 지워라"** 는 어렵습니�
 
 - **감사 로그는 삭제하지 않습니다** (법적 보존 의무가 우선). `actor_id`만 익명화.
 - **백업에서도 지워야 하는가**는 법무와 확인 (대부분 보존 기간 경과로 갈음).
-- 어떤 서비스가 어떤 PII를 갖는지 **데이터 인벤토리 표**를 [01 §2](./01_architecture.md)의 서비스 표에 열로 추가하세요.
+- 어떤 서비스가 어떤 PII를 갖는지 **데이터 인벤토리 표**를 [01 §2](./260902_1312_msa_architecture.md)의 서비스 표에 열로 추가하세요.
 
 ---
 
@@ -960,7 +960,7 @@ MSA에서 **"이 사용자의 데이터를 전부 지워라"** 는 어렵습니�
 
 ### 10-1. 공급망
 
-[18_cicd §3](./18_cicd.md)에서 자동화하지만, 원칙만 여기에:
+[18_cicd §3](./260919_1540_msa_cicd.md)에서 자동화하지만, 원칙만 여기에:
 
 ```bash
 cargo deny check advisories   # RUSTSEC 취약점
@@ -1004,7 +1004,7 @@ fn load_secret(name: &str) -> anyhow::Result<String> {
 
 ### 10-3. 컨테이너
 
-[09 §7](./09_deploy.md)의 체크리스트에 "non-root USER"가 있지만 §3의 Dockerfile에는 없습니다. 실제로:
+[09 §7](./260910_1410_msa_deploy.md)의 체크리스트에 "non-root USER"가 있지만 §3의 Dockerfile에는 없습니다. 실제로:
 
 ```dockerfile
 FROM debian:bookworm-slim AS runtime
@@ -1063,8 +1063,8 @@ spec:
 ```
 
 **기본 거부(default deny)에서 시작해서 필요한 것만 여세요.**
-[01 §2](./01_architecture.md)의 서비스 맵이 그대로 NetworkPolicy가 됩니다.
-이게 있으면 [10_errata §1](./10_errata.md)의 SSRF 시나리오도 상당 부분 막힙니다.
+[01 §2](./260902_1312_msa_architecture.md)의 서비스 맵이 그대로 NetworkPolicy가 됩니다.
+이게 있으면 [10_errata §1](./260911_1420_msa_errata.md)의 SSRF 시나리오도 상당 부분 막힙니다.
 
 ---
 
@@ -1072,15 +1072,15 @@ spec:
 
 | 위협 | 이 문서의 대응 | 잔여 위험 |
 |---|---|---|
-| 헤더 스푸핑으로 사칭 | §1 서비스 JWT 재검증 + [10_errata §1](./10_errata.md) | — |
+| 헤더 스푸핑으로 사칭 | §1 서비스 JWT 재검증 + [10_errata §1](./260911_1420_msa_errata.md) | — |
 | 토큰 탈취 | §5 회전 + 재사용 탐지, §2-5 저장 위치 | 짧은 창 |
 | 키 유출 | §3 무중단 회전 | 탐지 시점까지 |
 | 크리덴셜 스터핑 | §6 다층 rate limit + 유출 목록 대조 | 저속 공격 |
 | 브루트포스 | §6 점진적 지연, argon2 | — |
 | 계정 열거 | §6-3 응답 통일 | 타이밍 |
 | SSRF → 내부 호출 | §1 재검증 + §10-4 NetworkPolicy | — |
-| 내부 에러 노출 | [10_errata §3](./10_errata.md) | — |
-| 시크릿 로그 유출 | [10_errata §4](./10_errata.md) + §9 Pii 타입 | — |
+| 내부 에러 노출 | [10_errata §3](./260911_1420_msa_errata.md) | — |
+| 시크릿 로그 유출 | [10_errata §4](./260911_1420_msa_errata.md) + §9 Pii 타입 | — |
 | 의존성 취약점 | §10-1 cargo deny | 0-day |
 | 컨테이너 탈출 | §10-3 non-root + seccomp | 커널 취약점 |
 | PII 유출 | §9 타입 강제 + 파이프라인 마스킹 | — |
@@ -1115,4 +1115,4 @@ spec:
 
 ---
 
-다음: [13_data_evolution — 무중단 스키마 변경과 DB 운영](./13_data_evolution.md)
+다음: [13_data_evolution — 무중단 스키마 변경과 DB 운영](./260914_1450_msa_data_evolution.md)

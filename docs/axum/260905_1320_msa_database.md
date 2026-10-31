@@ -7,7 +7,7 @@ MSA에서는 **서비스마다 DB(또는 스키마)를 분리**하는 것이 기
 
 ## 1. Docker로 Postgres 올리기
 
-`docker-compose.yml` 발췌 ([09](./09_deploy.md) 전체):
+`docker-compose.yml` 발췌 ([09](./260910_1410_msa_deploy.md) 전체):
 
 ```yaml
 services:
@@ -205,7 +205,7 @@ CREATE TABLE outbox (
 ```
 
 발행 워커가 `published_at IS NULL` 을 폴링해 NATS/Kafka로 보냅니다.  
-상세: [07_messaging](./07_messaging.md).
+상세: [07_messaging](./260908_1350_msa_messaging.md).
 
 ---
 
@@ -229,7 +229,7 @@ unique violation → 409 Conflict 로 올리는 패턴은 Nest/Spring과 동일�
 
 - 목록은 항상 **키셋 페이지네이션** (`WHERE id < $1 ORDER BY id DESC LIMIT 20`)
 - `SELECT *` 금지, 응답 DTO에 맞는 컬럼만
-- 핫 키 조회는 Redis ([05](./05_redis.md))
+- 핫 키 조회는 Redis ([05](./260906_1330_msa_redis.md))
 - 검색/통계는 나중에 읽기 모델(별도 DB)로 분리
 
 ---
@@ -279,4 +279,4 @@ outbox(id, topic, payload, created_at, published_at)
 [ ] 분산 트랜잭션 대신 로컬 TX + outbox를 검토했다
 ```
 
-다음: [05_redis — 캐시·세션·락·레이트리밋](./05_redis.md)
+다음: [05_redis — 캐시·세션·락·레이트리밋](./260906_1330_msa_redis.md)

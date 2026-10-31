@@ -288,7 +288,7 @@ cargo run -p user-service &
 cargo run -p order-service &
 ```
 
-로컬은 Docker Compose로 PG/Redis만 띄우고, 서비스는 호스트에서 `cargo run` 하는 조합이 디버깅에 좋습니다. ([09_deploy](./09_deploy.md))
+로컬은 Docker Compose로 PG/Redis만 띄우고, 서비스는 호스트에서 `cargo run` 하는 조합이 디버깅에 좋습니다. ([09_deploy](./260910_1410_msa_deploy.md))
 
 ---
 
@@ -313,4 +313,4 @@ cargo run -p order-service &
 [ ] 각 서비스가 독립 바이너리로 cargo run 된다
 ```
 
-다음: [03_service_anatomy — 한 서비스 내부를 Nest 모듈처럼 짜기](./03_service_anatomy.md)
+다음: [03_service_anatomy — 한 서비스 내부를 Nest 모듈처럼 짜기](./260904_1310_msa_service_anatomy.md)

@@ -1,6 +1,6 @@
 # 15. 관측성 심화 — 트레이스가 실제로 이어지게
 
-[08_observability](./08_observability.md)는 이렇게 약속합니다.
+[08_observability](./260909_1400_msa_observability.md)는 이렇게 약속합니다.
 
 > Gateway → order → user 호출이 하나의 Trace로 보이게 하면
 > Nest 모놀리스의 콜스택을 대체합니다.
@@ -67,7 +67,7 @@ cargo tree -d | grep opentelemetry
 ```
 
 `cargo tree -d`(duplicates)에 opentelemetry가 나오면 **버전을 통일할 때까지 진행하지 마세요.**
-[02 §2](./02_workspace.md)의 `[workspace.dependencies]`에 고정해서 서비스마다 어긋나는 것을 막습니다.
+[02 §2](./260903_1300_msa_workspace.md)의 `[workspace.dependencies]`에 고정해서 서비스마다 어긋나는 것을 막습니다.
 
 ### 2-2. 초기화
 
@@ -156,7 +156,7 @@ impl Drop for TelemetryGuard {
 부모가 샘플링됐으면 자식도 샘플링합니다. 이게 없으면 **트레이스가 중간에 끊깁니다.**
 
 **`TelemetryGuard`도 중요합니다.** 배치 익스포터는 버퍼링하므로,
-[11 §1](./11_resilience.md)의 graceful shutdown에서 flush하지 않으면 **장애 직전 트레이스가 사라집니다.**
+[11 §1](./260912_1430_msa_resilience.md)의 graceful shutdown에서 flush하지 않으면 **장애 직전 트레이스가 사라집니다.**
 가장 필요한 순간의 데이터가 없어지는 겁니다.
 
 ---
@@ -305,8 +305,8 @@ let http = reqwest_middleware::ClientBuilder::new(reqwest::Client::new())
 
 ### gateway는 반드시 시작점
 
-[06 §4](./06_gateway_auth.md)의 `forward()`는 헤더를 화이트리스트로 복사합니다.
-`traceparent`와 `tracestate`를 **반드시 포함**시키세요 ([10_errata §1](./10_errata.md)의 `FORWARD_ALLOW`).
+[06 §4](./260907_1340_msa_gateway_auth.md)의 `forward()`는 헤더를 화이트리스트로 복사합니다.
+`traceparent`와 `tracestate`를 **반드시 포함**시키세요 ([10_errata §1](./260911_1420_msa_errata.md)의 `FORWARD_ALLOW`).
 
 빠뜨리면 gateway에서 트레이스가 끊기고, 정작 가장 보고 싶은 **"gateway → 어느 서비스가 느린가"** 를 못 봅니다.
 
@@ -493,7 +493,7 @@ let response = next.run(req).await;
 metrics::gauge!("http_requests_in_flight").decrement(1.0);
 ```
 
-이 값이 [11 §4](./11_resilience.md)의 `ConcurrencyLimit`에 근접하면 곧 load shedding이 시작된다는 신호입니다.
+이 값이 [11 §4](./260912_1430_msa_resilience.md)의 `ConcurrencyLimit`에 근접하면 곧 load shedding이 시작된다는 신호입니다.
 
 ### 6-4. 인프라 메트릭
 
@@ -626,7 +626,7 @@ if response.status().is_success() && rand::random::<f64>() > 0.1 {
 }
 ```
 
-**단, 감사 로그는 절대 샘플링하지 마세요** ([12 §8](./12_security.md)).
+**단, 감사 로그는 절대 샘플링하지 마세요** ([12 §8](./260913_1440_msa_security.md)).
 
 ---
 
@@ -781,7 +781,7 @@ SLO (목표)      : 30일간 가용성 99.9%, p99 < 300ms
 - CpuThrottling: rate(container_cpu_cfs_throttled_seconds_total[5m]) > 0.1   # 11 §7
 ```
 
-마지막 항목이 [11 §7](./11_resilience.md)의 tokio 워커 스레드 문제를 직접 탐지합니다.
+마지막 항목이 [11 §7](./260912_1430_msa_resilience.md)의 tokio 워커 스레드 문제를 직접 탐지합니다.
 
 ---
 
@@ -817,7 +817,7 @@ SLO (목표)      : 30일간 가용성 99.9%, p99 < 300ms
 → "이 문제가 배포 직후 시작됐나?" 를 즉시 판단
 ```
 
-Grafana annotation API를 CD 파이프라인에서 호출하세요 ([18_cicd](./18_cicd.md)).
+Grafana annotation API를 CD 파이프라인에서 호출하세요 ([18_cicd](./260919_1540_msa_cicd.md)).
 장애 대응 시간을 가장 크게 줄이는 단순한 조치 중 하나입니다.
 
 ---
@@ -849,7 +849,7 @@ async fn pprof_handler(Query(q): Query<ProfileQuery>) -> impl IntoResponse {
 }
 ```
 
-`[profile.release-debug]` ([11 §7-4](./11_resilience.md))로 빌드하면 프로파일에 함수명이 보입니다.
+`[profile.release-debug]` ([11 §7-4](./260912_1430_msa_resilience.md))로 빌드하면 프로파일에 함수명이 보입니다.
 
 **async 코드는 프로파일링이 까다롭습니다.** 스택이 런타임에서 끊깁니다.
 `tokio-console`(`tokio_unstable` 필요)이 태스크 단위 분석에 더 유용한 경우가 많습니다.
@@ -858,7 +858,7 @@ async fn pprof_handler(Query(q): Query<ProfileQuery>) -> impl IntoResponse {
 
 ## 12. 08 §4의 health를 마무리
 
-[11 §1-6](./11_resilience.md)에서 캐싱을 다뤘고, 여기서는 세 번째 엔드포인트를 추가합니다.
+[11 §1-6](./260912_1430_msa_resilience.md)에서 캐싱을 다뤘고, 여기서는 세 번째 엔드포인트를 추가합니다.
 
 ```rust
 Router::new()
@@ -918,4 +918,4 @@ readinessProbe:
 
 ---
 
-다음: [16_api_contract — OpenAPI와 계약 테스트](./16_api_contract.md)
+다음: [16_api_contract — OpenAPI와 계약 테스트](./260917_1520_msa_api_contract.md)

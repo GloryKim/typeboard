@@ -217,4 +217,4 @@ OrderPending
 [ ] 로컬에서 NATS 또는 Redis Streams로 한 사이클이 돈다
 ```
 
-다음: [08_observability — 로그·트레이스·메트릭](./08_observability.md)
+다음: [08_observability — 로그·트레이스·메트릭](./260909_1400_msa_observability.md)

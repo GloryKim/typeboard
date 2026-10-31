@@ -1,6 +1,6 @@
 # 13. 데이터 진화 — 무중단 스키마 변경과 PostgreSQL 운영
 
-[04_database](./04_database.md)는 **스키마를 만드는 법**을 다룹니다.
+[04_database](./260905_1320_msa_database.md)는 **스키마를 만드는 법**을 다룹니다.
 이 문서는 **이미 트래픽이 흐르는 스키마를 바꾸는 법**을 다룹니다.
 
 이 둘은 완전히 다른 문제입니다.
@@ -23,7 +23,7 @@ t=60  v2 파드 3개
 
 **t=20에서 v1 코드가 v2 스키마를 봅니다.** 그리고 롤백하면 v2 코드가 사라진 상태에서 v2 스키마가 남습니다.
 
-[09 §5](./09_deploy.md)는 *"배포 Job이 앱보다 먼저 migrate"* 라고 정확히 말합니다.
+[09 §5](./260910_1410_msa_deploy.md)는 *"배포 Job이 앱보다 먼저 migrate"* 라고 정확히 말합니다.
 그런데 **먼저 migrate하면 옛 코드가 새 스키마와 마주칩니다.** 그래서 마이그레이션 자체가 호환되어야 합니다.
 
 ### 1-2. 실제로 터지는 것들
@@ -301,7 +301,7 @@ pool_size = ((core_count × 2) + effective_spindle_count) / 앱 인스턴스 수
 4코어 PG + SSD 기준 총 커넥션 ~10개면 충분한 경우가 많습니다.
 **"느리니까 풀을 늘리자"는 대개 반대 방향입니다.**
 
-### 4-3. 전체 타임아웃 설정 ([11 §5-4](./11_resilience.md)의 상세)
+### 4-3. 전체 타임아웃 설정 ([11 §5-4](./260912_1430_msa_resilience.md)의 상세)
 
 ```rust
 use sqlx::{postgres::PgPoolOptions, ConnectOptions, Executor};
@@ -340,7 +340,7 @@ pub struct AppState {
 }
 ```
 
-[11 §6-1](./11_resilience.md)의 bulkhead와 같은 논리입니다.
+[11 §6-1](./260912_1430_msa_resilience.md)의 bulkhead와 같은 논리입니다.
 **백필 작업이 API 요청의 커넥션을 먹으면 안 됩니다.**
 
 ---
@@ -423,7 +423,7 @@ UserRepo::find_by_id(&pool, id).await?;          // 단독
 UserRepo::find_by_id(&mut *tx, id).await?;       // 트랜잭션 안
 ```
 
-[03 §4](./03_service_anatomy.md)처럼 `&self.pool`을 내부에 고정하면 **나중에 트랜잭션이 필요해질 때 전부 고쳐야 합니다.**
+[03 §4](./260904_1310_msa_service_anatomy.md)처럼 `&self.pool`을 내부에 고정하면 **나중에 트랜잭션이 필요해질 때 전부 고쳐야 합니다.**
 처음부터 이 형태로 시작하세요.
 
 ### 6-2. 트랜잭션 안에서 하면 안 되는 것
@@ -441,7 +441,7 @@ let user = user_client.get_user(cmd.user_id).await?;
 tx.commit().await?;
 ```
 
-**트랜잭션은 최대한 짧게.** 외부 호출은 트랜잭션 밖에서 하고, 이벤트는 outbox로 넘깁니다 ([14](./14_messaging_ops.md)).
+**트랜잭션은 최대한 짧게.** 외부 호출은 트랜잭션 밖에서 하고, 이벤트는 outbox로 넘깁니다 ([14](./260915_1500_msa_messaging_ops.md)).
 
 ```rust
 // ✅ 올바른 순서
@@ -541,7 +541,7 @@ where F: FnMut() -> Fut, Fut: Future<Output = Result<T, sqlx::Error>> {
 
 ### 7-1. 앱 기동 시 migrate의 함정
 
-[04 §3](./04_database.md)은 `sqlx::migrate!`를 권하고, [09 §5](./09_deploy.md)는 프로덕션에서 별도 Job을 권합니다.
+[04 §3](./260905_1320_msa_database.md)은 `sqlx::migrate!`를 권하고, [09 §5](./260910_1410_msa_deploy.md)는 프로덕션에서 별도 Job을 권합니다.
 **09가 맞습니다.** 이유:
 
 ```
@@ -691,7 +691,7 @@ let opts = PgConnectOptions::from_str(&url)?
 
 ### 8-3. sqlx 매크로를 실제로 쓰기
 
-[04 §5](./04_database.md)가 `query_as!`를 "강력 추천"하는데, [03 §4](./03_service_anatomy.md)의 예제는
+[04 §5](./260905_1320_msa_database.md)가 `query_as!`를 "강력 추천"하는데, [03 §4](./260904_1310_msa_service_anatomy.md)의 예제는
 런타임 `query_as`를 씁니다. 매크로를 쓰려면:
 
 ```toml
@@ -711,7 +711,7 @@ git add .sqlx && git commit -m "chore: update sqlx offline cache"
 SQLX_OFFLINE=true cargo build
 ```
 
-**CI에서 캐시 최신성을 강제하세요** ([18_cicd](./18_cicd.md)):
+**CI에서 캐시 최신성을 강제하세요** ([18_cicd](./260919_1540_msa_cicd.md)):
 
 ```bash
 cargo sqlx prepare --workspace --check -- --all-targets
@@ -721,7 +721,7 @@ cargo sqlx prepare --workspace --check -- --all-targets
 
 ### 8-4. N+1
 
-[07 §2](./07_messaging.md)가 서비스 간 N+1을 다루지만, **DB 안에서도 납니다.**
+[07 §2](./260908_1350_msa_messaging.md)가 서비스 간 N+1을 다루지만, **DB 안에서도 납니다.**
 
 ```rust
 // ❌ 주문 20개 → 쿼리 21번
@@ -756,7 +756,7 @@ sqlx::query_as::<_, ItemRow>("SELECT * FROM order_items WHERE order_id = ANY($1)
 → 레플리카 도입 검토
 ```
 
-그 전에 **캐시([05](./05_redis.md))와 인덱스**를 먼저 보세요. 레플리카는 복잡도가 큽니다.
+그 전에 **캐시([05](./260906_1330_msa_redis.md))와 인덱스**를 먼저 보세요. 레플리카는 복잡도가 큽니다.
 
 ### 9-2. 복제 지연이 만드는 버그
 
@@ -812,7 +812,7 @@ let pool = if conn.exists(format!("rw:{user_id}")).await? {
 
 ## 10. 백업과 복구
 
-[09 §7](./09_deploy.md)의 체크리스트에 "PG PITR"이 한 줄 있습니다. 실제로 필요한 것:
+[09 §7](./260910_1410_msa_deploy.md)의 체크리스트에 "PG PITR"이 한 줄 있습니다. 실제로 필요한 것:
 
 ### 10-1. 복구 목표를 먼저 정하세요
 
@@ -850,7 +850,7 @@ RTO 1시간 → 복구 리허설을 해봐야 알 수 있음
 | order_db (주문) | 0에 가깝게 | 금전 |
 | catalog_db (상품) | 시간 단위 | 재생성 가능 |
 | notification_log | 하루 | 유실 감수 가능 |
-| audit_log | 0 | 법적 요구 ([12 §8](./12_security.md)) |
+| audit_log | 0 | 법적 요구 ([12 §8](./260913_1440_msa_security.md)) |
 
 **전부 최고 등급으로 하면 비용이 감당 안 됩니다.** 서비스별로 다르게 가세요.
 
@@ -892,4 +892,4 @@ pg_restore -d user_db -t users user_db_2026-07-23.dump
 
 ---
 
-다음: [14_messaging_ops — outbox 워커를 실제로 굴리기](./14_messaging_ops.md)
+다음: [14_messaging_ops — outbox 워커를 실제로 굴리기](./260915_1500_msa_messaging_ops.md)

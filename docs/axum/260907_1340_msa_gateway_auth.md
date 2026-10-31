@@ -304,4 +304,4 @@ let cors = CorsLayer::new()
 [ ] 서비스 포트가 퍼블릭에 직접 노출되지 않는다
 ```
 
-다음: [07_messaging — 서비스 간 통신](./07_messaging.md)
+다음: [07_messaging — 서비스 간 통신](./260908_1350_msa_messaging.md)

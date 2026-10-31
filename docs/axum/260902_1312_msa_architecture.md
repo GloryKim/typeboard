@@ -97,7 +97,7 @@ NestJS/Spring에서도 Saga를 바로 쓰지 않듯, 여기서도:
 5. 실패 시 → OrderCancelled 보상 이벤트
 ```
 
-상세는 [07_messaging](./07_messaging.md).
+상세는 [07_messaging](./260908_1350_msa_messaging.md).
 
 ---
 
@@ -144,7 +144,7 @@ NATS_URL=nats://nats:4222
 ```
 
 - 코드에 시크릿 금지
-- `common` 크레이트에 `Settings` 로더 공유 ([02](./02_workspace.md))
+- `common` 크레이트에 `Settings` 로더 공유 ([02](./260903_1300_msa_workspace.md))
 - prod는 시크릿 매니저 / K8s Secret
 
 ---
@@ -160,7 +160,7 @@ MSA는 “연결이 된다”보다 **“끊겼을 때 어떻게 보이는가”
 | Redis 다운 | DB로 fallback (캐시 miss로 간주) or 명확한 503 |
 | DB 다운 | 해당 서비스만 503, gateway는 부분 응답 가능 시 부분 성공 |
 
-Circuit breaker / timeout / retry는 [08_observability](./08_observability.md)와 Tower 레이어로 붙입니다.
+Circuit breaker / timeout / retry는 [08_observability](./260909_1400_msa_observability.md)와 Tower 레이어로 붙입니다.
 
 ---
 
@@ -199,4 +199,4 @@ order-service binary
 [ ] 장애 시 UX/응답 정책을 한 줄씩 적었다
 ```
 
-다음: [02_workspace — Cargo workspace로 모노레포 짜기](./02_workspace.md)
+다음: [02_workspace — Cargo workspace로 모노레포 짜기](./260903_1300_msa_workspace.md)

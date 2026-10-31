@@ -170,10 +170,9 @@ bun --hot path/to/server.ts
 | Path | What it is |
 |---|---|
 | [`docs/tokio`](./docs/tokio/) | Tokio runtime: tasks, `poll` / Waker, thread pool, timers / TCP. [`readme.md`](./docs/tokio/readme.md) then `01.md`–`06.md`. |
-| [`docs/axum`](./docs/axum/) | Axum routing, extractors, JSON, middleware — concept → code → checkpoint. |
+| [`docs/axum`](./docs/axum/) | Axum routing, extractors, JSON, middleware — plus the `msa_*` series (workspace, sqlx, Redis, gateway, messaging, tracing, deploy). |
 | [`docs/hyper`](./docs/hyper/) | Hyper 1.x under Axum / reqwest: the HTTP layer you rarely call directly. |
 | [`docs/reqwest`](./docs/reqwest/) | Outbound HTTP from an Axum process (sender / receiver examples). |
-| [`docs/msa`](./docs/msa/) | NestJS / Spring-scale MSA on Axum: workspace, sqlx, Redis, gateway, messaging, tracing, deploy. |
 
 ### Bun
 

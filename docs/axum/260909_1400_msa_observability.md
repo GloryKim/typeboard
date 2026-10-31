@@ -164,4 +164,4 @@ Err(e) => {
 [ ] (선택) OTLP로 Jaeger에 트레이스가 보인다
 ```
 
-다음: [09_deploy — Docker Compose로 한 번에 올리기](./09_deploy.md)
+다음: [09_deploy — Docker Compose로 한 번에 올리기](./260910_1410_msa_deploy.md)

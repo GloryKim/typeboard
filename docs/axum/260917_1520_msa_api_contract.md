@@ -30,7 +30,7 @@ MSA에서 계약은 선택이 아닙니다. 서비스가 3개일 때는 슬랙�
 | 층 | 대상 | 도구 |
 |---|---|---|
 | HTTP API | 클라이언트 ↔ 서비스 | OpenAPI (`utoipa`) |
-| 이벤트 | 생산자 ↔ 소비자 | JSON Schema / protobuf ([14 §8](./14_messaging_ops.md)) |
+| 이벤트 | 생산자 ↔ 소비자 | JSON Schema / protobuf ([14 §8](./260915_1500_msa_messaging_ops.md)) |
 | 소비자 기대 | 실제로 뭘 쓰는가 | 계약 테스트 (§6) |
 
 세 번째가 가장 중요하고 가장 자주 빠집니다.
@@ -47,7 +47,7 @@ utoipa-swagger-ui = { version = "9", features = ["axum"] }
 ```
 
 > 버전은 예시입니다. `utoipa`와 `utoipa-axum`, `utoipa-swagger-ui`의 호환 조합을 확인하세요.
-> [15 §2-1](./15_observability_deep.md)의 `cargo tree -d` 방법이 여기에도 적용됩니다.
+> [15 §2-1](./260916_1510_msa_observability_deep.md)의 `cargo tree -d` 방법이 여기에도 적용됩니다.
 
 ### 2-1. 스키마 어노테이션
 
@@ -93,7 +93,7 @@ pub struct RegisterRequest {
 
 ### 2-2. 에러 스키마도 반드시
 
-[10_errata §3](./10_errata.md)의 `ErrorBody`를 스펙에 넣으세요.
+[10_errata §3](./260911_1420_msa_errata.md)의 `ErrorBody`를 스펙에 넣으세요.
 
 ```rust
 #[derive(Serialize, ToSchema)]
@@ -288,7 +288,7 @@ cargo run -p user-service --bin dump-openapi
 | 응답 필드 추가 | ❌ (클라이언트가 무시하면) |
 | 새 엔드포인트 | ❌ |
 
-[13 §2](./13_data_evolution.md)의 expand/contract, [14 §8-2](./14_messaging_ops.md)의 이벤트 진화와
+[13 §2](./260914_1450_msa_data_evolution.md)의 expand/contract, [14 §8-2](./260915_1500_msa_messaging_ops.md)의 이벤트 진화와
 **정확히 같은 원리**입니다. 스키마 진화의 법칙은 하나입니다: **더하는 건 안전, 빼는 건 위험.**
 
 ---
@@ -572,7 +572,7 @@ async fn user_client_matches_contract() {
 
 ## 7. 이벤트 계약
 
-HTTP만 계약이 아닙니다. [14 §8](./14_messaging_ops.md)의 이벤트도 마찬가지입니다.
+HTTP만 계약이 아닙니다. [14 §8](./260915_1500_msa_messaging_ops.md)의 이벤트도 마찬가지입니다.
 
 ### 7-1. 스키마 생성
 
@@ -632,7 +632,7 @@ fn event_schemas_are_backward_compatible() {
 
 ### 7-3. 소비자 등록부를 코드로
 
-[14 §8-4](./14_messaging_ops.md)의 표를 사람이 관리하면 낡습니다. 선언하게 만드세요.
+[14 §8-4](./260915_1500_msa_messaging_ops.md)의 표를 사람이 관리하면 낡습니다. 선언하게 만드세요.
 
 ```rust
 // 각 소비 서비스에서
@@ -717,7 +717,7 @@ metrics::counter!("deprecated_api_calls_total",
 ).increment(1);
 ```
 
-**`client` 라벨의 카디널리티에 주의하세요** ([15 §5](./15_observability_deep.md)).
+**`client` 라벨의 카디널리티에 주의하세요** ([15 §5](./260916_1510_msa_observability_deep.md)).
 클라이언트가 수천 개면 이건 로그로 남기고 메트릭에는 넣지 마세요.
 
 ---
@@ -752,7 +752,7 @@ pub struct Page<T> {
 | ID | UUIDv7 문자열 |
 | enum | `snake_case` 문자열. 숫자 코드 금지 (의미 불명) |
 
-[04 §10](./04_database.md)의 `total_cents` 선택은 옳습니다. 이걸 전 서비스 규약으로 올리세요.
+[04 §10](./260905_1320_msa_database.md)의 `total_cents` 선택은 옳습니다. 이걸 전 서비스 규약으로 올리세요.
 
 ### 9-3. 일관성 있는 필드명
 
@@ -834,7 +834,7 @@ orders, order_items, outbox, order_saga
 - 취소는 배송 시작 전까지만
 ```
 
-**의존 표가 [01 §7](./01_architecture.md)의 실패 모드 표와 이어집니다.**
+**의존 표가 [01 §7](./260902_1312_msa_architecture.md)의 실패 모드 표와 이어집니다.**
 새로 합류한 사람이 이 파일 하나로 서비스를 파악할 수 있어야 합니다.
 
 ---
@@ -912,4 +912,4 @@ NATS JetStream을 채택한다.
 
 ---
 
-다음: [17_testing — 실제로 굴러가는 테스트](./17_testing.md)
+다음: [17_testing — 실제로 굴러가는 테스트](./260918_1530_msa_testing.md)

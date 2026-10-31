@@ -1,6 +1,6 @@
 # 11. 회복탄력성 — graceful shutdown · 과부하 방어 · 런타임 튜닝
 
-[03_service_anatomy](./03_service_anatomy.md)는 서비스가 **어떻게 요청을 처리하는지**를 다뤘습니다.
+[03_service_anatomy](./260904_1310_msa_service_anatomy.md)는 서비스가 **어떻게 요청을 처리하는지**를 다뤘습니다.
 이 문서는 서비스가 **어떻게 죽고, 어떻게 안 죽는지**를 다룹니다.
 
 MSA에서 이 두 가지가 장애의 대부분을 차지합니다.
@@ -14,7 +14,7 @@ MSA에서 이 두 가지가 장애의 대부분을 차지합니다.
 
 ### 1-1. 지금 무슨 일이 일어나는가
 
-[03 §6](./03_service_anatomy.md)의 main은 이렇습니다.
+[03 §6](./260904_1310_msa_service_anatomy.md)의 main은 이렇습니다.
 
 ```rust
 axum::serve(listener, app).await?;
@@ -187,7 +187,7 @@ spec:
 
 ### 1-5. 백그라운드 태스크도 같이 멈춰야 합니다
 
-[07 §4](./07_messaging.md)의 outbox 워커, NATS consumer는 `tokio::spawn`으로 돌고 있습니다.
+[07 §4](./260908_1350_msa_messaging.md)의 outbox 워커, NATS consumer는 `tokio::spawn`으로 돌고 있습니다.
 main이 끝나면 **그냥 사라집니다.** publish 도중이었다면 그 순간의 상태가 애매해집니다.
 
 `tokio_util::sync::CancellationToken`으로 묶으세요.
@@ -277,7 +277,7 @@ async fn outbox_worker(pool: PgPool, shutdown: CancellationToken) {
 
 ### 1-6. `/ready`의 의존성 체크는 캐싱하세요
 
-[08 §4](./08_observability.md)의 `/ready`는 매번 `SELECT 1`을 칩니다.
+[08 §4](./260909_1400_msa_observability.md)의 `/ready`는 매번 `SELECT 1`을 칩니다.
 
 ```
 replicas 20개 × periodSeconds 2초 = 초당 10 쿼리
@@ -320,7 +320,7 @@ impl ReadinessCache {
 | `/ready` (readiness) | 필수 의존성만, 캐싱, 타임아웃 | 트래픽 제외 |
 | `/startup` (startup) | 마이그레이션·워밍업 완료 | 아직 시작 중 |
 
-[08 §4](./08_observability.md)의 *"DB 순간 흔들림에 `/health`까지 묶지 마세요"* 는 정확합니다.
+[08 §4](./260909_1400_msa_observability.md)의 *"DB 순간 흔들림에 `/health`까지 묶지 마세요"* 는 정확합니다.
 여기에 **"`/ready`도 매번 치지 마세요"** 를 추가하는 겁니다.
 
 ---
@@ -349,7 +349,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 .layer(RequestBodyLimitLayer::new(20 * 1024 * 1024))
 ```
 
-> [06 §4](./06_gateway_auth.md)의 gateway는 1MB로 하드코딩되어 있습니다.
+> [06 §4](./260907_1340_msa_gateway_auth.md)의 gateway는 1MB로 하드코딩되어 있습니다.
 > 값 자체보다 **"엔드포인트마다 다르게, 명시적으로"** 가 중요합니다.
 
 ---
@@ -506,7 +506,7 @@ ConcurrencyLimit(바깥) → LoadShed(안쪽)
 
 ### 4-3. 한도는 어떻게 정하나
 
-추측하지 말고 **부하 테스트로 측정**하세요 ([17_testing §5](./17_testing.md)).
+추측하지 말고 **부하 테스트로 측정**하세요 ([17_testing §5](./260918_1530_msa_testing.md)).
 
 ```
 1. 부하를 서서히 올리며 p99 지연을 관측
@@ -671,7 +671,7 @@ let pool = PgPoolOptions::new()
 
 세 번째는 특히 무섭습니다. 트랜잭션 하나가 열린 채 방치되면 **PostgreSQL의 VACUUM이 멈추고 테이블이 부풀어 오릅니다.**
 
-자세히는 [13_data_evolution §4](./13_data_evolution.md).
+자세히는 [13_data_evolution §4](./260914_1450_msa_data_evolution.md).
 
 ---
 
@@ -728,7 +728,7 @@ let product = state.catalog_bh.run(state.catalog.get(id)).await?;
 
 ### 6-2. 서킷브레이커 — tower에는 없습니다
 
-> [07 §2](./07_messaging.md)는 *"Circuit breaker — `tower::retry`"* 라고 적었지만,
+> [07 §2](./260908_1350_msa_messaging.md)는 *"Circuit breaker — `tower::retry`"* 라고 적었지만,
 > **tower에는 서킷브레이커가 없습니다.** `tower::retry`는 재시도이고, 재시도는 서킷브레이커의 **반대**입니다.
 > 장애 중인 서비스에 재시도를 하면 부하가 늘어 회복을 방해합니다.
 
@@ -809,7 +809,7 @@ fn is_circuit_failure(e: &ClientError) -> bool {
 
 ### 6-3. 재시도는 조심해서
 
-[07 §2](./07_messaging.md)의 *"GET만 제한적 재시도"* 는 맞습니다. 여기에 두 가지를 더합니다.
+[07 §2](./260908_1350_msa_messaging.md)의 *"GET만 제한적 재시도"* 는 맞습니다. 여기에 두 가지를 더합니다.
 
 **(1) 지수 백오프 + 지터**
 
@@ -914,7 +914,7 @@ CFS throttling을 피하려고 **`requests`만 걸고 `limits.cpu`는 생략**�
 
 ### 7-4. 빌드 프로필
 
-[02 §2](./02_workspace.md)에 `[profile.release]` 설정이 없습니다.
+[02 §2](./260903_1300_msa_workspace.md)에 `[profile.release]` 설정이 없습니다.
 
 ```toml
 # 루트 Cargo.toml
@@ -976,19 +976,19 @@ impl Default for ResilienceConfig { /* 위 값들 */ }
 pub fn apply_defaults<S>(router: Router<S>, cfg: &ResilienceConfig) -> Router<S> { ... }
 ```
 
-[02 §4](./02_workspace.md)의 *"공유해도 되는 것"* 표에 이 항목을 추가하세요.
+[02 §4](./260903_1300_msa_workspace.md)의 *"공유해도 되는 것"* 표에 이 항목을 추가하세요.
 **인프라 정책은 공유 대상입니다.** 도메인 로직만 공유가 금지입니다.
 
 ---
 
 ## 9. 장애 시나리오 대조표
 
-[01 §7](./01_architecture.md)이 세운 실패 모드 표를, 이 문서의 도구로 실제로 구현하면 이렇게 됩니다.
+[01 §7](./260902_1312_msa_architecture.md)이 세운 실패 모드 표를, 이 문서의 도구로 실제로 구현하면 이렇게 됩니다.
 
 | 장애 | 01의 기대 동작 | 실제 구현 |
 |---|---|---|
 | catalog 다운 | 주문 거절 or 미검증 플래그 | Bulkhead + CircuitBreaker → 정책에 따라 즉시 실패/기본값 |
-| notification 다운 | 주문 성공, 재시도 큐 적재 | outbox가 이미 보장 ([14](./14_messaging_ops.md)) |
+| notification 다운 | 주문 성공, 재시도 큐 적재 | outbox가 이미 보장 ([14](./260915_1500_msa_messaging_ops.md)) |
 | Redis 다운 | DB fallback | 05 §9 + rate limit fail-open/closed 명시 |
 | DB 다운 | 해당 서비스만 503 | `/ready` 실패 → 트래픽 제외, `/health`는 유지 |
 | **트래픽 급증** | (01에 없음) | LoadShed → 503 + retry-after |
@@ -1022,4 +1022,4 @@ pub fn apply_defaults<S>(router: Router<S>, cfg: &ResilienceConfig) -> Router<S>
 
 ---
 
-다음: [12_security — 신뢰 경계·키 회전·토큰 폐기](./12_security.md)
+다음: [12_security — 신뢰 경계·키 회전·토큰 폐기](./260913_1440_msa_security.md)

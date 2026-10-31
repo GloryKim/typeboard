@@ -1,6 +1,6 @@
 # 19. 플랫폼 결정 — 자작할 것과 사올 것
 
-[01_architecture](./01_architecture.md)는 **서비스 경계**를 정합니다.
+[01_architecture](./260902_1312_msa_architecture.md)는 **서비스 경계**를 정합니다.
 이 문서는 그보다 앞선 질문을 다룹니다: **무엇을 직접 만들고 무엇을 가져다 쓸 것인가.**
 
 이 결정을 잘못하면 6개월 뒤 "우리 팀은 왜 제품이 아니라 인프라만 만들고 있지?"가 됩니다.
@@ -11,7 +11,7 @@
 
 ### 1-1. 06의 프록시 코드가 다루지 못하는 것들
 
-[06 §4](./06_gateway_auth.md)는 정직하게 적어뒀습니다.
+[06 §4](./260907_1340_msa_gateway_auth.md)는 정직하게 적어뒀습니다.
 
 > 실무에서는:
 > - 스트리밍 바디 (대용량 업로드)
@@ -19,7 +19,7 @@
 > - 타임아웃·재시도 정책
 > - gRPC 백엔드면 Envoy/tonic 검토
 
-여기에 [10_errata §1~2](./10_errata.md)가 더 찾아낸 것들(헤더 스푸핑, 응답 헤더 유실)을 더하고,
+여기에 [10_errata §1~2](./260911_1420_msa_errata.md)가 더 찾아낸 것들(헤더 스푸핑, 응답 헤더 유실)을 더하고,
 실제 프로덕션 gateway가 해야 하는 일을 전부 나열하면:
 
 ```
@@ -67,7 +67,7 @@
 └──────────────────────────────────────────────────────┘
 ```
 
-[09 §7](./09_deploy.md)의 이 문장이 정확합니다.
+[09 §7](./260910_1410_msa_deploy.md)의 이 문장이 정확합니다.
 
 > Ingress가 Compose의 gateway 포트 역할을 일부 대체할 수 있으나,
 > **앱 레벨 gateway(JWT/rate limit)** 는 여전히 유용합니다.
@@ -127,7 +127,7 @@ Envoy가 L7을 처리하고, gateway는 BFF(응답 조합, 클라이언트별 �
 
 **옵션 C — 06대로 직접** (학습 목적 또는 특수 요구)
 
-이 경우 [10_errata §1~2](./10_errata.md)를 **반드시** 먼저 적용하세요.
+이 경우 [10_errata §1~2](./260911_1420_msa_errata.md)를 **반드시** 먼저 적용하세요.
 
 ### 1-4. 판단 기준
 
@@ -150,17 +150,17 @@ Envoy가 L7을 처리하고, gateway는 BFF(응답 조합, 클라이언트별 �
 
 ### 2-1. 메시가 해결하는 것
 
-[11](./11_resilience.md)과 [12](./12_security.md)에서 손으로 만든 것들의 상당수를
+[11](./260912_1430_msa_resilience.md)과 [12](./260913_1440_msa_security.md)에서 손으로 만든 것들의 상당수를
 Istio/Linkerd는 **코드 변경 없이** 제공합니다.
 
 | 기능 | 손으로 (이 가이드) | 메시 |
 |---|---|---|
-| 재시도/타임아웃 | [11 §6-3](./11_resilience.md) | 설정 |
-| 서킷브레이커 | [11 §6-2](./11_resilience.md) | 설정 |
+| 재시도/타임아웃 | [11 §6-3](./260912_1430_msa_resilience.md) | 설정 |
+| 서킷브레이커 | [11 §6-2](./260912_1430_msa_resilience.md) | 설정 |
 | mTLS | 직접 구현 | 자동 |
-| 트래픽 분배(카나리) | [18 §8-3](./18_cicd.md) | 설정 |
-| 서비스 간 인가 | [12 §1-4](./12_security.md) | 정책 |
-| 골든 메트릭 | [15 §6-3](./15_observability_deep.md) | 자동 |
+| 트래픽 분배(카나리) | [18 §8-3](./260919_1540_msa_cicd.md) | 설정 |
+| 서비스 간 인가 | [12 §1-4](./260913_1440_msa_security.md) | 정책 |
+| 골든 메트릭 | [15 §6-3](./260916_1510_msa_observability_deep.md) | 자동 |
 
 ### 2-2. 그런데 비용이 큽니다
 
@@ -369,7 +369,7 @@ async fn run_job(name: &str, settings: Settings) -> anyhow::Result<()> {
 
 ### 4-1. gateway를 통과시키지 마세요
 
-[10_errata §2](./10_errata.md)에서 본 대로, [06 §4](./06_gateway_auth.md)의 프록시는
+[10_errata §2](./260911_1420_msa_errata.md)에서 본 대로, [06 §4](./260907_1340_msa_gateway_auth.md)의 프록시는
 바디를 전량 버퍼링합니다. 100MB 파일 10개가 동시에 오면 gateway가 1GB를 씁니다.
 
 **정석: presigned URL로 클라이언트가 스토리지에 직접 업로드**
@@ -451,7 +451,7 @@ pub async fn download_url(auth: AuthUser, State(s): State<AppState>, Path(id): P
 | 확정되지 않은 업로드 정리 | 24시간 후 pending 삭제 (§3의 배치) |
 | 스토리지에 남은 고아 객체 | S3 lifecycle rule + 정기 대조 |
 | 바이러스 스캔 | 업로드 완료 이벤트 → 스캔 워커 → 통과 후 공개 |
-| 이미지 리사이즈 | 별도 워커 ([10_errata §6](./10_errata.md) — CPU 집약) |
+| 이미지 리사이즈 | 별도 워커 ([10_errata §6](./260911_1420_msa_errata.md) — CPU 집약) |
 | MIME 위조 | `content-type` 헤더를 믿지 말고 매직 바이트 검사 |
 | CORS | S3 버킷에 직접 CORS 설정 필요 |
 | 로컬 개발 | MinIO를 compose에 추가 |
@@ -533,10 +533,10 @@ async fn notify_user(redis: &mut ConnectionManager, user_id: Uuid, msg: &ServerM
 
 | 항목 | 대응 |
 |---|---|
-| Graceful shutdown | 종료 전 클라이언트에 "재연결하세요" 프레임 전송 ([11 §1](./11_resilience.md)) |
+| Graceful shutdown | 종료 전 클라이언트에 "재연결하세요" 프레임 전송 ([11 §1](./260912_1430_msa_resilience.md)) |
 | 인증 | WebSocket은 헤더를 못 보내는 클라이언트가 있음 → 연결 후 첫 프레임으로 토큰 전송 |
 | 토큰 만료 | 장시간 연결 중 access token 만료 → 주기적 재인증 또는 연결 종료 |
-| 느린 소비자 | 송신 채널을 bounded로 두고 넘치면 연결 끊기 ([11 §4](./11_resilience.md)) |
+| 느린 소비자 | 송신 채널을 bounded로 두고 넘치면 연결 끊기 ([11 §4](./260912_1430_msa_resilience.md)) |
 | 하트비트 | ping/pong으로 죽은 연결 탐지 (중간 프록시가 60초에 끊는 경우가 많음) |
 | 연결 수 한계 | 파드당 상한 + 초과 시 503 |
 | 프록시 통과 | Traefik/Envoy에서 WebSocket 업그레이드 허용 설정 |
@@ -580,7 +580,7 @@ async fn order_events(auth: AuthUser, State(s): State<AppState>)
 
 ### 6-1. 지금 방식의 한계
 
-[01 §6](./01_architecture.md), [09 §2](./09_deploy.md)는 환경변수에 URL을 넣습니다.
+[01 §6](./260902_1312_msa_architecture.md), [09 §2](./260910_1410_msa_deploy.md)는 환경변수에 URL을 넣습니다.
 
 ```
 USER_SERVICE_URL=http://user-service:3001
@@ -681,7 +681,7 @@ async fn watch_config(path: PathBuf, state: GatewayState, shutdown: Cancellation
 ```
 
 **파싱 실패 시 기존 설정 유지**가 핵심입니다.
-[12 §3-4](./12_security.md)의 JWKS 갱신 실패 처리와 같은 원리입니다.
+[12 §3-4](./260913_1440_msa_security.md)의 JWKS 갱신 실패 처리와 같은 원리입니다.
 
 ### 6-4. 피처 플래그
 
@@ -721,7 +721,7 @@ if state.features.load().maintenance_mode {
 
 ## 7. 언제 서비스를 나눌 것인가 (01 §1의 재확인)
 
-[01 §1](./01_architecture.md)의 판단 기준은 정확합니다. 이 보강판을 다 읽고 나서 다시 보면 무게가 다릅니다.
+[01 §1](./260902_1312_msa_architecture.md)의 판단 기준은 정확합니다. 이 보강판을 다 읽고 나서 다시 보면 무게가 다릅니다.
 
 **서비스 하나를 추가한다는 것은:**
 
@@ -756,7 +756,7 @@ if state.features.load().maintenance_mode {
 ```
 
 1~2단계에서 **경계 설계를 검증**할 수 있습니다. 잘못 그은 경계는 이때 고치는 게 거의 공짜입니다.
-3단계 이후에는 [01 §1](./01_architecture.md)의 말대로 *"쪼개고 합치는 비용이 급증"* 합니다.
+3단계 이후에는 [01 §1](./260902_1312_msa_architecture.md)의 말대로 *"쪼개고 합치는 비용이 급증"* 합니다.
 
 ### 7-2. crate 경계로 강제하기
 
@@ -817,7 +817,7 @@ outbox 대신 **DB의 WAL을 직접 읽어** 이벤트를 만드는 방식이 �
 | 운영 | 앱 안에서 | 별도 시스템 |
 
 **CDC의 가장 큰 문제는 이벤트가 "테이블 행 변경"이라는 것입니다.**
-소비자가 생산자의 테이블 구조에 결합되어, [13](./13_data_evolution.md)의 스키마 변경이 곧 계약 변경이 됩니다.
+소비자가 생산자의 테이블 구조에 결합되어, [13](./260914_1450_msa_data_evolution.md)의 스키마 변경이 곧 계약 변경이 됩니다.
 
 **도메인 이벤트를 명시적으로 쓰는 outbox가 MSA에는 더 맞습니다.**
 CDC는 데이터 웨어하우스 동기화 같은 용도에 적합합니다.
@@ -879,7 +879,7 @@ Rust와 axum은 위 목록의 어느 것도 자동으로 해주지 않습니다.
 대신 **명시적으로 만들 수 있게** 해주고, 한 번 만들면 **타입 시스템이 지켜줍니다.**
 
 NestJS/Spring에서 넘어온다면, 그 프레임워크들이 조용히 해주던 일의 목록
-([00 §6](./00_addendum_index.md))을 먼저 확인하세요.
+([00 §6](./260901_0321_msa_addendum_index.md))을 먼저 확인하세요.
 그 목록이 이 보강판의 존재 이유이고, Rust MSA의 실제 난이도가 어디에 있는지를 보여줍니다.
 
 ---
@@ -908,11 +908,11 @@ NestJS/Spring에서 넘어온다면, 그 프레임워크들이 조용히 해주�
 
 ## 관련 문서
 
-- [00_addendum_index](./00_addendum_index.md) — 보강판 인덱스
-- [10_errata](./10_errata.md) — 기존 예제 정정
-- [11_resilience](./11_resilience.md) · [12_security](./12_security.md)
-- [13_data_evolution](./13_data_evolution.md) · [14_messaging_ops](./14_messaging_ops.md)
-- [15_observability_deep](./15_observability_deep.md) · [16_api_contract](./16_api_contract.md)
-- [17_testing](./17_testing.md) · [18_cicd](./18_cicd.md)
+- [00_addendum_index](./260901_0321_msa_addendum_index.md) — 보강판 인덱스
+- [10_errata](./260911_1420_msa_errata.md) — 기존 예제 정정
+- [11_resilience](./260912_1430_msa_resilience.md) · [12_security](./260913_1440_msa_security.md)
+- [13_data_evolution](./260914_1450_msa_data_evolution.md) · [14_messaging_ops](./260915_1500_msa_messaging_ops.md)
+- [15_observability_deep](./260916_1510_msa_observability_deep.md) · [16_api_contract](./260917_1520_msa_api_contract.md)
+- [17_testing](./260918_1530_msa_testing.md) · [18_cicd](./260919_1540_msa_cicd.md)
 
-기존 문서: [readme](./readme.md) · [01](./01_architecture.md) ~ [09](./09_deploy.md)
+기존 문서: [readme](./readme.md) · [01](./260902_1312_msa_architecture.md) ~ [09](./260910_1410_msa_deploy.md)

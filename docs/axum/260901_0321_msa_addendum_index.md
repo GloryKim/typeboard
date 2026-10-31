@@ -1,6 +1,6 @@
 # 00. 보강판 인덱스 — 01~09를 실제로 운영 가능하게 만들기
 
-기존 [readme](./readme.md) ~ [09_deploy](./09_deploy.md)는 **MSA의 뼈대**를 세웁니다.
+기존 [readme](./readme.md) ~ [09_deploy](./260910_1410_msa_deploy.md)는 **MSA의 뼈대**를 세웁니다.
 이 보강판(10~19)은 그 뼈대를 **프로덕션에 올렸을 때 실제로 터지는 것들**을 채웁니다.
 
 기존 문서는 수정하지 않습니다. 이 문서들이 덧붙는 레이어입니다.
@@ -32,16 +32,16 @@
 
 | 번호 | 문서 | 무엇을 채우나 | 대응 기존 문서 |
 |---|---|---|---|
-| 10 | [10_errata](./10_errata.md) | 01~09 코드 예제의 **버그·보안 결함 정정** | 전부 |
-| 11 | [11_resilience](./11_resilience.md) | graceful shutdown · 과부하 방어 · 런타임 튜닝 | 03, 09 |
-| 12 | [12_security](./12_security.md) | 헤더 신뢰 경계 · 키 회전 · 토큰 폐기 · 감사 | 06 |
-| 13 | [13_data_evolution](./13_data_evolution.md) | 무중단 스키마 변경 · 풀 튜닝 · PgBouncer | 04 |
-| 14 | [14_messaging_ops](./14_messaging_ops.md) | outbox 워커 운영 · inbox · DLQ · 순서 | 07 |
-| 15 | [15_observability_deep](./15_observability_deep.md) | traceparent 전파 · 카디널리티 · SLO | 08 |
-| 16 | [16_api_contract](./16_api_contract.md) | utoipa/OpenAPI · 클라이언트 생성 · 계약 테스트 | 01, 07 |
-| 17 | [17_testing](./17_testing.md) | 통합/계약/부하/장애주입 테스트 실물 | 03 |
-| 18 | [18_cicd](./18_cicd.md) | clippy·deny·nextest·이미지·롤백 | 09 |
-| 19 | [19_platform_decisions](./19_platform_decisions.md) | gateway 자작 여부 · 스케줄러 · 업로드 · DX | 01, 06, 09 |
+| 10 | [10_errata](./260911_1420_msa_errata.md) | 01~09 코드 예제의 **버그·보안 결함 정정** | 전부 |
+| 11 | [11_resilience](./260912_1430_msa_resilience.md) | graceful shutdown · 과부하 방어 · 런타임 튜닝 | 03, 09 |
+| 12 | [12_security](./260913_1440_msa_security.md) | 헤더 신뢰 경계 · 키 회전 · 토큰 폐기 · 감사 | 06 |
+| 13 | [13_data_evolution](./260914_1450_msa_data_evolution.md) | 무중단 스키마 변경 · 풀 튜닝 · PgBouncer | 04 |
+| 14 | [14_messaging_ops](./260915_1500_msa_messaging_ops.md) | outbox 워커 운영 · inbox · DLQ · 순서 | 07 |
+| 15 | [15_observability_deep](./260916_1510_msa_observability_deep.md) | traceparent 전파 · 카디널리티 · SLO | 08 |
+| 16 | [16_api_contract](./260917_1520_msa_api_contract.md) | utoipa/OpenAPI · 클라이언트 생성 · 계약 테스트 | 01, 07 |
+| 17 | [17_testing](./260918_1530_msa_testing.md) | 통합/계약/부하/장애주입 테스트 실물 | 03 |
+| 18 | [18_cicd](./260919_1540_msa_cicd.md) | clippy·deny·nextest·이미지·롤백 | 09 |
+| 19 | [19_platform_decisions](./260920_1550_msa_platform_decisions.md) | gateway 자작 여부 · 스케줄러 · 업로드 · DX | 01, 06, 09 |
 
 ---
 
@@ -86,7 +86,7 @@
 
 ## 4. 기존 로드맵에 끼워넣기
 
-[09_deploy §8](./09_deploy.md)의 주차별 로드맵을 이렇게 조정합니다.
+[09_deploy §8](./260910_1410_msa_deploy.md)의 주차별 로드맵을 이렇게 조정합니다.
 
 ```
 Week 1  workspace + user-service + PG migrate + /health
@@ -129,16 +129,16 @@ Week 6  (신설) 13_data_evolution + 16_api_contract
 
 | NestJS / Spring | Axum | 어디서 |
 |---|---|---|
-| `app.enableShutdownHooks()` / Spring graceful shutdown | 없음 — 직접 | [11](./11_resilience.md) |
-| Spring Actuator (`/health`, `/info`, `/env`) | 부분(`/health`만 관례) | [15](./15_observability_deep.md) |
-| Nest `ValidationPipe` 전역 에러 포맷 | 없음 — 커스텀 extractor | [10](./10_errata.md) §10 |
-| Spring `@Transactional` | 없음 — 수동 `tx` 전달 | [13](./13_data_evolution.md) |
-| Nest exception filter의 5xx 마스킹 | 없음 — 직접 | [10](./10_errata.md) §3 |
-| JVM 스레드풀 ↔ 컨테이너 CPU limit 인식 | tokio는 인식 못 함 | [11](./11_resilience.md) §7 |
-| Spring Cloud Gateway 재시도/서킷브레이커 | 없음 | [11](./11_resilience.md) §5 |
-| Flyway/Liquibase의 baseline·repair | sqlx는 최소한만 | [13](./13_data_evolution.md) |
-| SpringDoc 자동 스펙 | `utoipa` 수동 어노테이션 | [16](./16_api_contract.md) |
-| `@Scheduled` + ShedLock | 없음 | [19](./19_platform_decisions.md) §3 |
+| `app.enableShutdownHooks()` / Spring graceful shutdown | 없음 — 직접 | [11](./260912_1430_msa_resilience.md) |
+| Spring Actuator (`/health`, `/info`, `/env`) | 부분(`/health`만 관례) | [15](./260916_1510_msa_observability_deep.md) |
+| Nest `ValidationPipe` 전역 에러 포맷 | 없음 — 커스텀 extractor | [10](./260911_1420_msa_errata.md) §10 |
+| Spring `@Transactional` | 없음 — 수동 `tx` 전달 | [13](./260914_1450_msa_data_evolution.md) |
+| Nest exception filter의 5xx 마스킹 | 없음 — 직접 | [10](./260911_1420_msa_errata.md) §3 |
+| JVM 스레드풀 ↔ 컨테이너 CPU limit 인식 | tokio는 인식 못 함 | [11](./260912_1430_msa_resilience.md) §7 |
+| Spring Cloud Gateway 재시도/서킷브레이커 | 없음 | [11](./260912_1430_msa_resilience.md) §5 |
+| Flyway/Liquibase의 baseline·repair | sqlx는 최소한만 | [13](./260914_1450_msa_data_evolution.md) |
+| SpringDoc 자동 스펙 | `utoipa` 수동 어노테이션 | [16](./260917_1520_msa_api_contract.md) |
+| `@Scheduled` + ShedLock | 없음 | [19](./260920_1550_msa_platform_decisions.md) §3 |
 
 이 표가 이 보강판의 존재 이유를 가장 잘 요약합니다.
 **Rust는 프레임워크가 대신 해주던 운영 기능을 돌려주지 않습니다.** 대신 명시적으로 만들 수 있게 해줍니다.
@@ -156,10 +156,10 @@ tower-http    = "0.6"    # 0.6.11 기준 검증
 tower         = "0.5"
 ```
 
-기존 문서의 일부 버전은 한 세대 뒤쳐져 있습니다 ([10_errata §12](./10_errata.md) 참고).
+기존 문서의 일부 버전은 한 세대 뒤쳐져 있습니다 ([10_errata §12](./260911_1420_msa_errata.md) 참고).
 OpenTelemetry 계열은 특히 `opentelemetry` ↔ `tracing-opentelemetry` ↔ `opentelemetry-otlp` 버전이
-서로 맞물려야 하므로, [15_observability_deep](./15_observability_deep.md)의 조합표를 쓰세요.
+서로 맞물려야 하므로, [15_observability_deep](./260916_1510_msa_observability_deep.md)의 조합표를 쓰세요.
 
 ---
 
-다음: [10_errata — 기존 예제의 정정 목록](./10_errata.md)
+다음: [10_errata — 기존 예제의 정정 목록](./260911_1420_msa_errata.md)

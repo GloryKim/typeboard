@@ -1,6 +1,6 @@
 # 14. 메시징 운영 — outbox 워커 · inbox · DLQ · 순서
 
-[07_messaging](./07_messaging.md)은 **outbox 패턴이 무엇인지**를 설명합니다.
+[07_messaging](./260908_1350_msa_messaging.md)은 **outbox 패턴이 무엇인지**를 설명합니다.
 이 문서는 그 워커를 **실제로 몇 달 굴렸을 때 필요한 것들**을 다룹니다.
 
 07의 스케치와 운영 가능한 구현 사이의 거리가 이 문서의 분량입니다.
@@ -34,7 +34,7 @@ worker:
 
 ## 2. outbox 스키마 확장
 
-[04 §6](./04_database.md)의 테이블에 운영 컬럼을 더합니다.
+[04 §6](./260905_1320_msa_database.md)의 테이블에 운영 컬럼을 더합니다.
 
 ```sql
 CREATE TABLE outbox (
@@ -183,7 +183,7 @@ fn backoff_seconds(attempts: i32) -> i64 {
 ### 3-2. 트랜잭션이 오래 열리는 문제
 
 위 코드는 **HTTP/NATS publish를 트랜잭션 안에서** 합니다.
-[13 §6-2](./13_data_evolution.md)에서 하지 말라고 한 바로 그것입니다.
+[13 §6-2](./260914_1450_msa_data_evolution.md)에서 하지 말라고 한 바로 그것입니다.
 
 배치가 100개이고 각 publish가 10ms면 트랜잭션이 1초 열려 있습니다. 브로커가 느려지면 더 길어집니다.
 
@@ -283,7 +283,7 @@ async fn drain(&self) {
 
 **폴링을 없애지 말고 간격만 늘리세요.** NOTIFY는 보장이 없습니다(커넥션 끊김 시 유실).
 
-> ⚠️ **PgBouncer transaction 모드에서는 LISTEN/NOTIFY가 동작하지 않습니다** ([13 §5-3](./13_data_evolution.md)).
+> ⚠️ **PgBouncer transaction 모드에서는 LISTEN/NOTIFY가 동작하지 않습니다** ([13 §5-3](./260914_1450_msa_data_evolution.md)).
 > 워커는 PgBouncer를 우회해 PG에 직접 연결하세요.
 
 ### 3-4. 워커를 어디서 돌릴까
@@ -300,7 +300,7 @@ async fn drain(&self) {
 `SKIP LOCKED` 덕에 중복 발행은 없지만, **폴링 쿼리가 10배**가 됩니다.
 폴링 간격을 파드 수에 맞춰 늘리거나 LISTEN/NOTIFY로 가세요.
 
-[11 §1-5](./11_resilience.md)의 `CancellationToken` 정리를 반드시 적용하세요.
+[11 §1-5](./260912_1430_msa_resilience.md)의 `CancellationToken` 정리를 반드시 적용하세요.
 
 ---
 
@@ -695,7 +695,7 @@ order.created (id=A)
 | 타입 변경 | ❌ | 새 필드로 |
 | 의미 변경 | ❌❌ | **가장 위험.** 새 event_type을 만드세요 |
 
-[13 §2](./13_data_evolution.md)의 expand/contract와 같은 원리입니다. 스키마 진화의 법칙은 하나입니다.
+[13 §2](./260914_1450_msa_data_evolution.md)의 expand/contract와 같은 원리입니다. 스키마 진화의 법칙은 하나입니다.
 
 ```rust
 // 소비자는 모르는 필드를 무시하도록
@@ -738,7 +738,7 @@ OutboxRepo::push(&mut tx, "order.created.v2", v2_payload).await?;
 ```
 
 이 표가 없으면 **이벤트 스키마를 바꿀 때 누구에게 알려야 할지 모릅니다.**
-[16_api_contract](./16_api_contract.md)에서 이걸 자동화하는 방법을 다룹니다.
+[16_api_contract](./260917_1520_msa_api_contract.md)에서 이걸 자동화하는 방법을 다룹니다.
 
 ---
 
@@ -867,7 +867,7 @@ CREATE TABLE event_dlq (
 
 ### 9-4. Redis Streams를 쓸 때
 
-[05 §1](./05_redis.md)이 "소규모면 NATS 대체 가능"이라고 한 경우:
+[05 §1](./260906_1330_msa_redis.md)이 "소규모면 NATS 대체 가능"이라고 한 경우:
 
 ```rust
 // 소비자 그룹으로 읽기
@@ -875,7 +875,7 @@ CREATE TABLE event_dlq (
 ```
 
 주의:
-- **블로킹 읽기이므로 `ConnectionManager`를 쓰면 안 됩니다** ([10_errata §12-2](./10_errata.md)) — 전용 커넥션 필요
+- **블로킹 읽기이므로 `ConnectionManager`를 쓰면 안 됩니다** ([10_errata §12-2](./260911_1420_msa_errata.md)) — 전용 커넥션 필요
 - `XAUTOCLAIM`으로 죽은 소비자의 pending 메시지를 회수해야 합니다
 - `MAXLEN ~ 100000`으로 스트림 길이를 제한하지 않으면 메모리가 무한 증가합니다
 - Redis는 기본적으로 **디스크 영속성이 약합니다** — 이벤트 유실 허용 범위를 확인하세요
@@ -1064,4 +1064,4 @@ async fn saga_timeout_sweeper(pool: &PgPool) -> anyhow::Result<()> {
 
 ---
 
-다음: [15_observability_deep — 트레이스가 실제로 이어지게](./15_observability_deep.md)
+다음: [15_observability_deep — 트레이스가 실제로 이어지게](./260916_1510_msa_observability_deep.md)

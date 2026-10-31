@@ -193,7 +193,7 @@ impl UserService {
 }
 ```
 
-트랜잭션이 필요하면 Service에서 `pool.begin()` 후 repo에 `&mut tx`를 넘깁니다 ([04_database](./04_database.md)).
+트랜잭션이 필요하면 Service에서 `pool.begin()` 후 repo에 `&mut tx`를 넘깁니다 ([04_database](./260905_1320_msa_database.md)).
 
 ---
 
@@ -369,4 +369,4 @@ pub struct RegisterRequest {
 [ ] lib.rs에서 build_app을 노출해 테스트 가능하게 한다
 ```
 
-다음: [04_database — PostgreSQL + sqlx 실전](./04_database.md)
+다음: [04_database — PostgreSQL + sqlx 실전](./260905_1320_msa_database.md)
