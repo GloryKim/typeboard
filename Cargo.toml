@@ -1,0 +1,25 @@
+[package]
+name = "bun-report"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+
+[dependencies]
+comrak = { version = "0.59.0", default-features = false }
+notify = "8.2.1"
+percent-encoding = "2.3.2"
+regex = "1.13.1"
+rusqlite = { version = "0.41.1", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+syntect = { version = "5.3.0", default-features = false, features = ["default-fancy"] }
+tokio = { version = "1.54.1", features = ["full"] }
+topcoat = { version = "0.10", features = ["full"] }
+two-face = { version = "0.5.2", default-features = false, features = ["syntect-fancy"] }
+unicode-normalization = "0.1.26"
+
+# Highlighting and Markdown are slow without optimizations; keep dependencies optimized in dev
+# builds so `topcoat dev` starts quickly while our own code still compiles fast.
+[profile.dev.package."*"]
+opt-level = 3

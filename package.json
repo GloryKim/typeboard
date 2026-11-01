@@ -1,28 +1,16 @@
 {
-  "name": "typeboard",
+  "name": "bun-report",
   "private": true,
-  "version": "0.1.0",
   "type": "module",
-  "packageManager": "bun@1.4.0",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri"
-  },
-  "dependencies": {
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-clipboard-manager": "^2.3.3",
-    "@tauri-apps/plugin-opener": "^2",
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/addon-search": "0.15.0",
-    "@xterm/addon-web-links": "^0.11.0",
-    "@xterm/addon-webgl": "^0.18.0",
-    "@xterm/xterm": "^5.5.0"
-  },
-  "devDependencies": {
-    "@tauri-apps/cli": "^2",
-    "typescript": "~5.6.2",
-    "vite": "^6.0.3"
+    "start": "topcoat asset bundle && cargo run",
+    "dev": "topcoat dev",
+    "build": "sh scripts/service.sh build",
+    "typecheck": "cargo check",
+    "service:start": "sh scripts/service.sh start",
+    "service:stop": "sh scripts/service.sh stop",
+    "service:restart": "sh scripts/service.sh restart",
+    "service:status": "sh scripts/service.sh status",
+    "service:logs": "sh scripts/service.sh logs"
   }
 }
