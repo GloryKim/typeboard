@@ -9,7 +9,7 @@ use topcoat::{
     router::{
         Body, HeaderMap, HeaderName, HeaderValue, Next, StatusCode,
         content::{
-            Css, Json,
+            Css, Js, Json,
             websocket::{Message, WebSocketUpgrade},
         },
         error::{not_found, redirect},
@@ -23,15 +23,12 @@ use topcoat::{
 };
 
 use crate::{
+    assets,
     docs::{self, Category, Doc, Library, Lookup, Section, doc_href},
     markdown::{self, Heading},
     site::Site,
 };
 
-const STYLE: Asset = asset!("public/style.css");
-const APP_JS: Asset = asset!("public/app.js");
-const LIVERELOAD_JS: Asset = asset!("public/livereload.js");
-const MERMAID_INIT_JS: Asset = asset!("public/mermaid-init.js");
 // Downloaded once by the asset bundler and served from this site, so no CDN is contacted at runtime.
 const MERMAID_JS: Asset = asset!("https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js");
 
@@ -158,7 +155,7 @@ async fn frame(
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <title>(page_title)</title>
-                <link rel="stylesheet" href=(STYLE)>
+                <link rel="stylesheet" href="/static/style.css">
                 <link rel="stylesheet" href="/static/highlight.css">
                 topcoat::runtime::script()
                 topcoat::dev::script()
@@ -186,13 +183,13 @@ async fn frame(
                     <main class="content"><article class="markdown">(child)</article></main>
                     toc(headings: headings)
                 </div>
-                <script src=(APP_JS) defer=""></script>
+                <script src="/static/app.js" defer=""></script>
                 if mermaid {
                     <script src=(MERMAID_JS) defer=""></script>
-                    <script src=(MERMAID_INIT_JS) defer=""></script>
+                    <script src="/static/mermaid-init.js" defer=""></script>
                 }
                 if site.live_reload {
-                    <script src=(LIVERELOAD_JS) defer=""></script>
+                    <script src="/static/livereload.js" defer=""></script>
                 }
             </body>
         </html>
@@ -546,14 +543,38 @@ pub async fn search_api(cx: &Cx) -> Result<(HeaderMap, Json<crate::search::Searc
     Ok((extra, Json(result)))
 }
 
+/// Site stylesheet embedded in `src/assets/style.rs`.
+#[route(GET "/static/style.css")]
+pub async fn style_css() -> Result<Css<&'static str>> {
+    Ok(Css(assets::STYLE_CSS))
+}
+
 /// Token colors for server-highlighted code, light and dark.
 #[route(GET "/static/highlight.css")]
 pub async fn highlight_css(cx: &Cx) -> Result<Css<String>> {
     Ok(Css(site(cx).highlighter.css().to_owned()))
 }
 
+/// Page helpers embedded in `src/assets/app_js.rs`.
+#[route(GET "/static/app.js")]
+pub async fn app_js() -> Result<Js<&'static str>> {
+    Ok(Js(assets::APP_JS))
+}
+
+/// Mermaid bootstrap embedded in `src/assets/mermaid_init_js.rs`.
+#[route(GET "/static/mermaid-init.js")]
+pub async fn mermaid_init_js() -> Result<Js<&'static str>> {
+    Ok(Js(assets::MERMAID_INIT_JS))
+}
+
+/// Live-reload client embedded in `src/assets/livereload_js.rs`.
+#[route(GET "/static/livereload.js")]
+pub async fn livereload_js() -> Result<Js<&'static str>> {
+    Ok(Js(assets::LIVERELOAD_JS))
+}
+
 /// Pages subscribe here and reload when docs/ changes. A closed socket followed by a successful
-/// reconnect (server restarted) also reloads them; see public/livereload.js.
+/// reconnect (server restarted) also reloads them; see `/static/livereload.js`.
 #[route(GET "/__livereload")]
 pub async fn livereload(cx: &Cx, upgrade: WebSocketUpgrade) -> Result<Response> {
     let site = site(cx);

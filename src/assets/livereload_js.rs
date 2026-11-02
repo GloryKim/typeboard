@@ -1,4 +1,6 @@
-// Reloads the page when the server reports a change in docs/, and after the server
+//! WebSocket live reload for docs/ edits and server restarts.
+
+pub const JS: &str = r#"// Reloads the page when the server reports a change in docs/, and after the server
 // restarts, which shows up as the socket closing and reconnecting.
 
 const SCROLL_KEY = `livereload-scroll:${location.pathname}`;
@@ -25,3 +27,4 @@ function connect(reconnecting) {
 }
 
 connect(false);
+"#;

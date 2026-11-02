@@ -2,6 +2,7 @@
 //! Built on Topcoat (router, views, asset bundle, browser runtime, WebSocket).
 
 mod app;
+mod assets;
 mod docs;
 mod highlight;
 mod markdown;
@@ -58,7 +59,11 @@ async fn main() {
         .page(app::search_page)
         .page(app::not_found_page)
         .route(app::search_api)
+        .route(app::style_css)
         .route(app::highlight_css)
+        .route(app::app_js)
+        .route(app::mermaid_init_js)
+        .route(app::livereload_js)
         .route(app::livereload)
         .route(app::search_panel)
         // Images and other files that sit next to the docs.

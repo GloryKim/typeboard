@@ -1,4 +1,6 @@
-// Small page helpers the Topcoat runtime doesn't cover. The mobile menu toggle and the live search
+//! Page helpers (copy button, search keyboard, TOC highlight).
+
+pub const JS: &str = r#"// Small page helpers the Topcoat runtime doesn't cover. The mobile menu toggle and the live search
 // results are Topcoat runtime code (signals and a shard in src/app.rs); search-word highlighting
 // (?hl=) is done on the server.
 
@@ -97,3 +99,4 @@ if (tocLinks.size) {
     if (heading) observer.observe(heading);
   }
 }
+"#;

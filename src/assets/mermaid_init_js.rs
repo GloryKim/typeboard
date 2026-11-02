@@ -1,4 +1,6 @@
-// Turns ```mermaid code blocks into diagrams in the browser.
+//! Renders ```mermaid fences with the bundled Mermaid library.
+
+pub const JS: &str = r#"// Turns ```mermaid code blocks into diagrams in the browser.
 // The page loads this (and the mermaid library, a Topcoat asset) only when it contains a diagram,
 // since mermaid is far larger than the rest of the site's scripts.
 
@@ -46,3 +48,4 @@ if (blocks.length && window.mermaid) {
   renderAll();
   scheme.addEventListener("change", renderAll);
 }
+"#;

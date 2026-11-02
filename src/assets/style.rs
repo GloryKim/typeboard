@@ -1,4 +1,6 @@
-:root {
+//! Site stylesheet.
+
+pub const CSS: &str = r#":root {
   --bg: #ffffff;
   --fg: #1f2328;
   --muted: #59636e;
@@ -833,3 +835,4 @@ a.nav-label {
   color: var(--muted);
   font-size: 14.5px;
 }
+"#;

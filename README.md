@@ -24,7 +24,7 @@ cargo install topcoat-cli --version '~0.10' --locked
 
 | Command | What it does |
 |---|---|
-| `bun run dev` | Dev mode. Rebuilds and refreshes the page when Rust or CSS changes |
+| `bun run dev` | Dev mode. Rebuilds and refreshes the page when Rust (including embedded CSS/JS) changes |
 | `bun run start` | Bundle assets once and run (`http://localhost:3000`) |
 | `bun run service:start` | Register as a background service (starts on login) |
 | `bun run service:restart` | Rebuild and restart the service |
@@ -55,7 +55,7 @@ Override the port with `PORT` and the site title with `SITE_TITLE`.
 | **serde** / **serde_json** | Structured data for search APIs and site configuration |
 | **regex**, **percent-encoding**, **unicode-normalization** | Slug/URL handling, heading ids, and NFC-safe paths for Korean filenames |
 
-The binary is a Cargo project (`Cargo.toml`). After each build, Topcoat’s CLI packs `public/` (and remote assets such as Mermaid) next to the binary; `bun run start` runs `topcoat asset bundle` before `cargo run`.
+The binary is a Cargo project (`Cargo.toml`). Site CSS/JS live as Rust string constants under `src/assets/` and are served from `/static/*` routes. After each build, Topcoat’s CLI still packs remote assets (Mermaid) next to the binary; `bun run start` runs `topcoat asset bundle` before `cargo run`.
 
 ### Bun (tooling)
 
