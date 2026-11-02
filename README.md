@@ -2,8 +2,6 @@
 
 A server that turns study notes written as Markdown files into web pages. It is built with the Rust full-stack framework [Topcoat](https://github.com/tokio-rs/topcoat).
 
-Drop `.md` files into the `docs` folder and they show up on the site without a separate content build. The library currently covers Bun, Rust, system design, networks and security, and AI notes.
-
 ## Features
 
 - Sidebar organized as section → category → document. Only the category you are reading stays expanded.
