@@ -1,3 +1,7 @@
 # Also tells `topcoat dev` what not to watch.
-/target
-/logs
+/target/
+**/target/
+/logs/
+/node_modules/
+/dist/
+.DS_Store
